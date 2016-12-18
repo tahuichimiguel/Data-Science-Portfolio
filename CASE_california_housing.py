@@ -45,7 +45,7 @@ housing_features.head(n=10)
 housing_target.head(n=10)
 
 feature_data = housing_features.values
-target_data = housing_target.values[:,0]
+target_data = np.log(housing_target.values[:,0])
 
 #EDA
 plt.subplot(221)
@@ -180,11 +180,11 @@ fig.suptitle('Partial dependence of house value on nonlocation features '
 ###############################
     
 #Tuning of Hyperparameters vs grid search
-param_grid = {  'learning_rate':[0.1,0.05,0.02,0.01],
-                'max_depth':[4,6],
-                'min_samples_leaf':[3,5,9,17],
-                'max_features': [1.0,0.3,0.1]}
+#param_grid = {  'learning_rate':[0.1,0.05,0.02,0.01],
+#                'max_depth':[4,6],
+#                'min_samples_leaf':[3,5,9,17],
+#                'max_features': [1.0,0.3,0.1]}
 
-gs_cv = GridSearchCV(gbr,param_grid).fit(X,y)
-gs_cv.best_params_
-gbc.feature_importances_
+#gs_cv = GridSearchCV(gbr,param_grid).fit(X,y)
+#gs_cv.best_params_
+#gbc.feature_importances_
