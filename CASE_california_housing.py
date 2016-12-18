@@ -1,8 +1,10 @@
+
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn import linear_model
 from sklearn import svm
 from sklearn.ensemble import RandomForestRegressor
 from sklearn import datasets as datasets
+from sklearn.ensemble import partial_dependence as prtld
 
 import sklearn.metrics as metric
 import pandas as pd
@@ -15,12 +17,12 @@ import timeit
 ##Plots
 # Histograms: HouseAge, Latitude, Longitude, MedInc {DONE}
 # Geospatial: Scatterplot of data on map of California 
-# Error Convergence: test & train error vs n_estimators
-# Variable Importance Barplot for GBRT
-# Partial Dependence Plots for GBRT
+# Error Convergence: test & train error vs n_estimators {DONE}
+# Variable Importance Barplot for GBRT {DONE}
+# Partial Dependence Plots for GBRT {DONE}
 # Partial Dependence Chloropleth Plots for GBRT
 ##Tables
-# Comparison of Mean, RidgeReg, SVR, RF, & GBRT
+# Comparison of Mean, RidgeReg, SVR, RF, & GBRT {DONE}
 #      Train time, Test time
 #      Mean Absolute Error(MAE)
 
@@ -139,6 +141,7 @@ print(compare_results)
 
 #Train/Test Error vs n_estimators
 
+plt.figure()
 error = np.empty(len(gbr.estimators_))
 for i,pred in enumerate(gbr.staged_predict(X_test)):
     error[i] = gbr.loss_(pred,y_test)
@@ -148,9 +151,32 @@ plt.plot(np.arange(3000)+1,gbr.train_score_,label = 'Train')
 plt.legend(loc='upper right', shadow=True)
 plt.show()
     
-    
-    
-    
+del(gbr_pred_test)
+del(svr_pred_test)
+del(forest_pred_test)
+del(ridge_pred_test)
+del(pred)
+   
+#Variable Importance Plot
+varImp=gbr.feature_importances_   
+order = np.argsort(varImp)
+ 
+plt.figure( figsize=(6, 6))
+plt.barh(range(len(varImp)), varImp[order], color="r", align="center",height=0.5)
+plt.yticks(range(len(varImp)),housing_features.columns[order])
+plt.xlabel('Relative Importance (Average Gini)')
+plt.title('Gradient Boosting Variable Importance')
+
+#Partial Dependence Plot
+features = ['MedInc', 'AveOccup', 'HouseAge', 'AveRooms',
+                                ('AveOccup', 'HouseAge')]
+plt.figure( figsize=(12, 12))
+fig,axs = prtld.plot_partial_dependence(gbr, X_train,features,
+                                        feature_names=data_pkg.feature_names )
+plt.subplots_adjust(left=None, bottom=None, right=None, top=0.9,
+                    wspace=.55, hspace=0.5)                                        
+fig.suptitle('Partial dependence of house value on nonlocation features '
+                 'for the California housing dataset',va='top')
 ###############################
     
 #Tuning of Hyperparameters vs grid search
