@@ -1,0 +1,304 @@
+---
+title: "Identification of Employee Resignation Predictors"
+author: "Mikhail Lara"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load Data & Packages
+```{r, message=FALSE}
+library(data.table)
+library(ggplot2)
+library(randomForest)
+library(gmodels)
+library(gridExtra)
+library(grid)
+library(caret)
+library(vcd)
+library(corrplot)
+
+setwd('C:/Users/02laram26/Desktop/Kaggle/human-resources-analytics')
+file_name<-'HR_comma_sep.csv'
+
+hr<-read.csv(file_name)
+hr_dat<-as.data.table(hr)
+```
+
+#Data Summary & EDA
+```{r, include=FALSE,echo=FALSE}
+summary(hr_dat)
+```
+
+* The data set includes 5 categorical variables that describe each employee's resignation status, promotion status, salary level and department within the company.
+    + Whether the Employee Experienced a Workplace Accident (0: False , 1: True)
+    + Whether the Employee Received a Promotion in the Last 5 Years (0: False , 1: True)
+    + Department{sales} 
+    + Salary Bracket{salary} (low, medium, high)
+    + Resignation Status{left} (0: Remained with Company , 1: Resigned)
+
+```{r, include=FALSE,echo=FALSE}
+length(unique(hr_dat$sales))
+length(unique(hr_dat$salary))
+unique(hr_dat$salary)
+unique(hr_dat$sales)
+```
+
+##Correlation Plot
+* Pairs plot indicates that 'Left' has >10% Correlation with:
+    + Satisfaction Level (-38.8%)
+    + Work Accident (-15.5%)
+    + Time Spend at Company (14.5%)
+
+* The Average Monthly Hours data has the highest correlation with 'Left' that is less than 10% (7.13%)
+
+* Of these 3 variables, the company can exert the greatest control over the satisfaction level by modifying the workplace environment and setting company policies. Focus on characterizing this before moving on to work accident experience and the time spent at the company.
+
+```{r include=FALSE}
+M<-cor(hr[,-c(9,10)])
+corrplot(M, order="AOE", type="lower", cl.pos="b",addCoef.col = "black",diag=FALSE)
+```
+
+
+```{r echo=FALSE,include= FALSE }
+hr_dat[,left:=ifelse(left==0,FALSE,TRUE)]
+hr_dat[,Work_accident:=ifelse(Work_accident==0,FALSE,TRUE)]
+hr_dat[,promotion_last_5years:=ifelse(promotion_last_5years==0,FALSE,TRUE)]
+```
+
+##Assess Gross Population Effect
+* A Chi-squared test for independence indicates that the the relative proportions of employees that resigned does not match those of the salary distribution of all employees reported (p<0.05). This implies that each employee's salary mey be associated with his, or her, decision to resign from the company. Although this seems obvious, it is important because it rules out the possibility that employee resignation cannot be decreased by increasing salaries and bonuses.
+    + Reported Total Salary Distribution:
+        + High(8.2%) , Medium(43.0%) , Low(48.8%)
+    + Reported Resignation-Salary Distribution:
+        + High(2.3%) , Medium(36.9%) , Low(60.8%)
+
+```{r}
+ggplot(data=hr_dat,aes(x=left,fill=as.factor(salary)))+geom_bar()+
+    xlab('Left Company')+labs(title='Resignation vs Salary')
+
+CrossTable(hr_dat$left,hr_dat$salary)
+
+resign_tot<-data.table(rbind(c(2172,1317,82),c(7316,6446,1237)))
+setnames(resign_tot,c('Low Salary','Medium Salary','High Salary'))
+rownames(resign_tot)<-c('Resigned','Total')
+print.data.frame(resign_tot)
+
+chisq.test(resign_tot)
+```
+
+##Employee Satisfaction Level
+* Two Populations clusters appear to be associated with employees resigning:
+    + Cluster 1: 0.101 < Satisfaction Level < 0.108 & Satisfaction Level is in the 5% departmental quantile
+    + Cluster 2: 0.403 < Satisfaction Level < 0.409 & Satisfaction Level is in 15%-30% departmental quantiles
+    + A much smaller cluster employees also resigned despite having a Satisfaction Level greater than 0.75
+
+```{r}
+sales.count<-hr_dat[,.N,by=sales]
+setorder(sales.count,N)
+
+s.sales<-ggplot(hr_dat, aes(x=as.factor(sales),y=satisfaction_level))+
+    geom_violin(draw_quantiles=seq(from=0.05,to=1,by=.05))+
+    geom_jitter(width=0.1,aes(colour=as.factor(left),alpha=0.5))+
+    xlab('Department')+
+    ggtitle('Departmental Satisfaction Breakdown in 5% Quantiles')
+
+s.sales
+```
+
+###Employee Satisfaction Level: Cluster 1
+* The mean departmental satisfaction levels in Cluster 1 are skewed because of the accounting department with a value of 0.116. Hypothesis testing indicates that it's satisfaction level is significantly greater than other departments, implying that the unhappiest employees who resigned in accounting enjoyed their jobs more than unhappiest employees who resigned in other departments. 
+```{r,echo=FALSE}
+
+temp<-hr_dat[left==TRUE & satisfaction_level<0.25,satisfaction_level,by=sales]
+temp<-temp[,lapply(.SD,mean),by=sales]
+temp<-temp[order(temp$satisfaction_level,decreasing=TRUE),]
+temp[,sales:=factor(sales)]
+names(temp)<-c('sales','mean.satisfaction')
+
+shapiro.test(temp$mean.satisfaction)
+
+t.stat<-0.1169-mean(temp[temp$sales!='accounting']$mean.satisfaction)*sqrt(nrow(temp)-1)
+t.stat<-t.stat/sd(temp[temp$sales!='accounting']$mean.satisfaction)
+#1-pt(15.17272,df=8)
+
+print('Cluster 1 Mean Satisfaction Confidence Interval')
+mean(temp$mean.satisfaction)+sd(temp$mean.satisfaction)/sqrt(nrow(temp))*qt(p=0.025,df=nrow(temp)-1)*c(-1,1)
+
+```
+
+```{r}
+ggplot(data=temp,aes(x=mean.satisfaction,fill=as.factor(sales)))+
+    geom_dotplot(binaxis = "x", stackgroups = TRUE, binwidth = .005,dotsize = 0.1 ,method = "histodot")+
+    ggtitle('Mean Departmental Satisfaction Level (Cluster 1)')
+
+```
+
+###Employee Satisfaction Level: Cluster 2
+* The salary-resignation distribution exhibits the similar clustering as the breakdown by departments at low and medium salaries. However, the clusters are not as pronounced for high salaried employees. It is not surprising that the locations of the clusters are approximately equal across all salary brackets. This suggests that dissatisfaction that results in resignation is an intrinsic feature of the company that is not influenced by career paths or incentives. 
+
+```{r,echo=FALSE}
+temp<-hr_dat[left==TRUE & satisfaction_level>0.25 & satisfaction_level<0.5,satisfaction_level,by=sales]
+temp<-temp[,lapply(.SD,mean),by=sales]
+temp<-temp[order(temp$satisfaction_level,decreasing=TRUE),]
+names(temp)<-c('sales','mean.satisfaction')
+
+#print('Overall Upper Satisfaction Level Cluster')
+shapiro.test(temp$mean.satisfaction)
+print('Cluster 2 Mean Satisfaction Confidence Interval')
+mean(temp$mean.satisfaction)+sd(temp$mean.satisfaction)/sqrt(nrow(temp))*qt(p=0.025,df=nrow(temp)-1)*c(-1,1)
+```
+
+```{r}
+ggplot(data=temp,aes(x=mean.satisfaction,fill=as.factor(sales)))+
+    geom_dotplot(binaxis = "x", stackgroups = TRUE, binwidth = .005,dotsize = 0.1 ,method = "histodot")+
+    ggtitle('Mean Departmental Satisfaction Level (Cluster 2)')
+
+```
+
+* From the previous cross-tabulation, it is known that 6.6% of high salaried employess resigned whereas 29%.7 and 20.4% of low and medium salary employees resigned respectively. The disparity supports the hypothesis that salary is correlated to an employee's decision to resign.
+
+```{r}
+s.salary<-ggplot(hr_dat, aes(x=as.factor(salary),y=satisfaction_level))+
+    geom_violin(draw_quantiles=c(0.25,0.5,0.75))+
+    geom_jitter(width=0.1,aes(colour=as.factor(left),alpha=0.5))+
+    xlab('Salary Level')+
+    ggtitle('Salary Satisfaction Breakdown in 25% Quantiles')
+
+s.salary
+```
+
+```{r,echo=FALSE}
+temp<-hr_dat[left==TRUE,satisfaction_level,by=salary]
+temp<-temp[,lapply(.SD,mean),by=salary]
+temp<-temp[order(temp$satisfaction_level,decreasing=TRUE),]
+names(temp)<-c('sales','mean.satisfaction')
+```
+
+* ANOVA on 'satisfaction level', excluding left, indicates a statistically significant dependence all fields except 'average monthly hours' (p<.05). 
+    + Consider omitting average monthly hours from ML model for left since it is poorly correlated with 'left' and isn't a significant predictor of satisfaction.
+```{r}
+summary(aov(data=hr_dat,satisfaction_level~.-left))
+```
+
+##Time Spent at the Company
+* Of all the employees that resigned, 98.5% did so in the first 6 years of employment with 92.6% of those employees leaving between the 3rd and 5th years. 
+
+* Very few employees resigned after only two years. This trend in employee retention can likely be explained by people fresh out of school who are just starting their careers and have an incentive to remain employed to gain professional experience. 
+
+* After 6 years of employment at the company, the resignation rate drops to zero. This trend suggests the existence of a critical threshold beyond which HR no longer has to actively monitor employees to prevent resignation. Based on this, HR should consider providing promotions, raises, and company-sponsored training more frequently during the first 6 years of employment to get more employees to the 7 year mark where they are significantly less likely to resign.
+
+```{r, echo=FALSE}
+ggplot(data=hr_dat,aes(x=time_spend_company,fill=as.factor(left)))+
+    geom_histogram()+
+    ggtitle('Time at Company vs Resignation')
+
+#CrossTable(hr_dat$left,hr_dat$time_spend_company)
+
+yr2_6.remain <- 0.279+0.425 + 0.146 + 0.056 + 0.045
+yr2_6.resign <- 0.015+0.444 + 0.249 + 0.233 + 0.059 
+```
+
+##Work Accident Experience
+* The relationship between an employee experiencing a work accident and choosing to resign is unintuitive. Cross-tabulation shown in the mosaic plot, employee resignation is negatively correlated with experiencing an accident at work. This implies that employees who got injured on the job were more likely to choose to continue working at the company. Taken by itself, this result does not make sense. It may be explained by an interaction with either one of the reported data or one that is not present in the dataset.
+
+```{r}
+mosaicplot(data=hr_dat,Work_accident~left,color=c(3,2),main= 'Dependence of Resignation on Work Accident Experience ')
+```
+
+#Random Forest Classification & Variable Importance
+* The human resources data was split into training and validation data sets. The training data used to develop the random forest was comprised 75% of the original data set.
+```{r}
+    set.seed(7)
+    inTrain = createDataPartition(hr_dat$left,p=3/4,list=FALSE)
+    train_dat = hr_dat[inTrain,]
+    validate = hr_dat[-inTrain,]
+    
+    control <- trainControl(method="repeatedcv", number=10, repeats=3)
+    seed <- 7
+    metric <- "Accuracy"
+```
+
+##Random Forest
+* Initial Model Using All Fields Except Average Monthly Hours as Predictors
+    + In-Sample (Accuracy, Sensitivity, Specificity) = (0.9891, 0.9995, 0.9556)
+    + Out-of-Sample (Accuracy, Sensitivity, Specificity) = (0.9805, 0.9965, 0.9294)
+    + TOP Predictors & Relative Importance
+        + Satisfaction Level (1127.152)
+        + Number of Projects (705.512)
+        + Time Spent with Company (668.831)
+        + Average Monthly Hours (543.064)
+        + Last Evaluation (441.229)
+
+```{r, echo=FALSE}
+    set.seed(seed)
+    mtry <- sqrt(ncol(hr_dat))
+    tunegrid <- expand.grid(.mtry=mtry)
+    forest<- train(as.factor(left)~., data =train_dat,method='rf', 
+                   metric=metric,  tuneGrid=tunegrid,trControl=control)
+    
+    forest_pred_train<-predict(forest,train_dat)
+    forest_pred_validate<-predict(forest,validate)
+    #confusionMatrix(forest_pred_train,train_dat$left) 
+    #confusionMatrix(forest_pred_validate,validate$left) 
+    
+    plot(varImp(forest,scale = FALSE))
+```
+
+##Reduced Predictor Model - 5 Predictors
+* Reduced Order Model Using Most Significant Predictors Based on 1st Random Forest
+    + In-Sample (Accuracy, Sensitivity, Specificity) = ( 0.9993, 0.9994, 0.9989)
+    + Out-of-Sample (Accuracy, Sensitivity, Specificity) = (0.9893, 0.9961, 0.9675)
+    + TOP Predictors & Unscaled Importance
+        + Satisfaction Level (1490.3)
+        + Time Spent with Company (750.7)
+        + Number of Projects (715.9)
+        + Average Monthly Hours (626.8)
+        + Last Evaluation (467.2)
+
+```{r,echo=FALSE}
+    set.seed(seed)
+    mtry <- sqrt(5)
+    tunegrid <- expand.grid(.mtry=mtry)
+    forest2<- train(as.factor(left)~satisfaction_level+number_project+time_spend_company+average_montly_hours+last_evaluation,
+                            data =train_dat,method='rf', 
+                            metric=metric, tuneGrid=tunegrid, trControl=control)
+    
+    forest2_pred_train<-predict(forest2,train_dat)
+    forest2_pred_validate<-predict(forest2,validate)
+    #confusionMatrix(forest2_pred_train,train_dat$left) 
+    #confusionMatrix(forest2_pred_validate,validate$left) 
+    
+    plot(varImp(forest2,scale = FALSE))
+```
+
+##Reduced Predictor Model - 4 Predictors
+* Reduced Order Model Using Most Significant Predictors Based on 2nd Random Forest
+    + In-Sample (Accuracy, Sensitivity, Specificity) = (0.9956, 0.9974, 0.9899)
+    + Out-of-Sample (Accuracy, Sensitivity, Specificity) = (0.9875, 0.9937, 0.9675)
+    + TOP Predictors & Relative Importance
+        + Satisfaction Level (1676.3)
+        + Time Spent with Company (81)
+        + Number of Projects (773.7)
+        + Average Monthly Hours (726.2)
+```{r,echo=FALSE}
+    set.seed(seed)
+    mtry <- sqrt(4)
+    tunegrid <- expand.grid(.mtry=mtry)
+    forest3<- train(as.factor(left)~satisfaction_level+number_project+time_spend_company+average_montly_hours,
+                            data =train_dat,method='rf', 
+                            metric=metric, tuneGrid=tunegrid, trControl=control)
+    
+    forest3_pred_train<-predict(forest3,train_dat)
+    forest3_pred_validate<-predict(forest3,validate)
+    #confusionMatrix(forest3_pred_train,train_dat$left) 
+    #confusionMatrix(forest3_pred_validate,validate$left) 
+    
+    plot(varImp(forest3,scale=FALSE))
+    
+```
+
+##Model Remarks
+Reducing the number of predictors from the entire set of fields to top 5 results in a highly accurate model with employee satisfaction being the most important variable. A 5 predictor model should be selected because the unscaled importance of the bottom 4 predictors are the same order of magnitude, indicating relatively equal contribution to the model's predictive power. In addition, the out-of-sample accuracy, sensitivity, and specificity of the 4 preditor model are less that those of the 5 predictor model, which suggests that the an employee's last evaluation score is a relevant predictor that cannot be omitted.
