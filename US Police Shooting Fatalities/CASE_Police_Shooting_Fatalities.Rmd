@@ -1,0 +1,85 @@
+---
+title: "Fatal Police Shootings"
+author: "Mikhail Lara"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Data Structure & Summary
+```{r cars}
+library(ggplot2)
+library(data.table)
+library(lubridate)
+
+setwd('/Users/Mikey/Desktop/Kaggle Datasets/Datasets/Fatal Police Shootings')
+dt <- fread('database.csv',sep = ',')
+
+##Data Structure & Summary
+summary(dt)
+head(dt)
+```
+
+##Data Cleaning
+```{r}
+dt[,date:=ymd(date)]
+dt[,manner_of_death:=as.factor(manner_of_death)]
+dt[,armed:=as.factor(armed)]
+dt[,gender:=as.factor(gender)]
+dt[,race:=as.factor(race)]
+dt[,signs_of_mental_illness:=as.factor(signs_of_mental_illness)]
+dt[,threat_level:=as.factor(threat_level)]
+dt[,flee:=as.factor(flee)]
+dt[,body_camera:=as.factor(body_camera)]
+dt[,state:=as.factor(state)]
+dt[,YEAR:=year(date)]
+
+summary(dt)
+dt[,.N,by = year(date)]
+```
+
+#EDA
+```{r}
+#Age Distribution by Year
+ggplot(data = dt, aes(age,fill=as.factor(YEAR)))+
+  geom_histogram(bins=40)+ facet_grid(.~YEAR) +
+  scale_fill_discrete(guide=FALSE)
+
+  dt[!is.na(age),.(median=as.double(median(age)),SD=sd(age)),by="YEAR"]
+
+#Top 10 Weapons in Possession of Killed Citizen 
+tbl_armed<- table(dt$armed)
+  tbl_armed<-tbl_armed[order(tbl_armed)]
+  top10_armed<-tail(tbl_armed,n=10)
+  top10_armed.df<-data.frame(top10_armed)
+  
+  ggplot(data = top10_armed.df, aes(x=Var1,y=Freq))+geom_bar(stat='identity')+
+    geom_bar(stat='identity',fill='red')+
+    xlab('Armed')+ylab('Killings')  +coord_flip()
+
+#State Distribution of Police Shootings
+tbl_state<-table(dt$state)
+  tbl_state<-tbl_state[order(tbl_state)]
+  tbl_state.df<-data.frame(tbl_state)
+  
+  ggplot(data = data.frame(tbl_state),aes(x=Var1,y=Freq))+
+    geom_bar(stat='identity',fill='red')+coord_flip()+
+    xlab('State')+ylab('Killings')
+
+#Police Killings by Race
+tbl_race<-table(dt$race)
+  tbl_race<-tbl_race[order(tbl_race)]
+  tbl_race.df<-data.frame(tbl_race)
+  
+  ggplot(data=tbl_race.df, aes(x=Var1,y=Freq))+
+    geom_bar(stat='identity',fill='red')+
+    xlab('Race')+ylab('Killings')+coord_flip()
+
+
+```
+
+
+
+
