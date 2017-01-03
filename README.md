@@ -13,4 +13,10 @@
 #### US Police Shooting Study: Graphical & Cluster Analysis of 
   - The dataset for this case study is the Kaggle dataset 'Fatal Police Shootings, 2015 to Present'
   - **Languages:** R
-  - **Goal:** Identify any situational clusters that may correlate with fatal police shootings of US citizens. 
+  - **Goal:** Identify any situational clusters that may correlate with fatal police shootings of US citizens.
+  
+#### Human Resources Analytics
+  - Exploratory data analysis and machine learning modeling of 'Human Resources Analytics' Kaggle dataset.
+  - **Language:** R
+  - **Goal:** Identify the factors that most strongly predict employee resignation.
+
