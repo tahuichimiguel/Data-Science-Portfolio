@@ -16,7 +16,7 @@
   - The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har
   - **Languages:** Python & R
   - **Goal:** Predict the manner in which the subject did the exercise. This is the "classe" variable in the training set. 
-  - **Status:** R Analysis Complete. Python Analysis Still Active.
+  - **Status:** R Analysis Complete. Python Analysis Ongoing.
 
 ***
 
