@@ -14,7 +14,7 @@ library(ggplot2)
 library(data.table)
 library(lubridate)
 
-setwd('/Users/Mikey/Desktop/Kaggle Datasets/Datasets/Fatal Police Shootings')
+setwd('/Users/Mikey/Documents/ML-Case-Studies/US Police Shooting Fatalities')
 dt <- fread('database.csv',sep = ',')
 
 ##Data Structure & Summary
@@ -41,44 +41,90 @@ dt[,.N,by = year(date)]
 ```
 
 #EDA
+
+###Victim Descriptors
+    + Name
+    + Age
+    + Race
+    + Gender
+    
+###Officer Descriptors
+    + Body Camera
+    
 ```{r}
-#Age Distribution by Year
-ggplot(data = dt, aes(age,fill=as.factor(YEAR)))+
-  geom_histogram(bins=40)+ facet_grid(.~YEAR) +
-  scale_fill_discrete(guide=FALSE)
+#Victim Age Distribution each Year
+gAge<-ggplot(data = dt, aes(age,fill=as.factor(YEAR)))+
+  geom_histogram(bins=35)+ facet_grid(.~YEAR) +
+  scale_fill_discrete(guide=FALSE)+theme(text = element_text(size = 15))
 
   dt[!is.na(age),.(median=as.double(median(age)),SD=sd(age)),by="YEAR"]
-
-#Top 10 Weapons in Possession of Killed Citizen 
-tbl_armed<- table(dt$armed)
-  tbl_armed<-tbl_armed[order(tbl_armed)]
-  top10_armed<-tail(tbl_armed,n=10)
-  top10_armed.df<-data.frame(top10_armed)
-  
-  ggplot(data = top10_armed.df, aes(x=Var1,y=Freq))+geom_bar(stat='identity')+
-    geom_bar(stat='identity',fill='red')+
-    xlab('Armed')+ylab('Killings')  +coord_flip()
-
-#State Distribution of Police Shootings
-tbl_state<-table(dt$state)
-  tbl_state<-tbl_state[order(tbl_state)]
-  tbl_state.df<-data.frame(tbl_state)
-  
-  ggplot(data = data.frame(tbl_state),aes(x=Var1,y=Freq))+
-    geom_bar(stat='identity',fill='red')+coord_flip()+
-    xlab('State')+ylab('Killings')
 
 #Police Killings by Race
 tbl_race<-table(dt$race)
   tbl_race<-tbl_race[order(tbl_race)]
   tbl_race.df<-data.frame(tbl_race)
   
-  ggplot(data=tbl_race.df, aes(x=Var1,y=Freq))+
+gRace<- ggplot(data=tbl_race.df, aes(x=Var1,y=Freq))+
     geom_bar(stat='identity',fill='red')+
-    xlab('Race')+ylab('Killings')+coord_flip()
+    xlab('Race')+ylab('Total Killings 2015-2016')+
+    theme(text = element_text(size = 15))+
+    coord_flip()  
+```
 
+
+###Situation Descriptors
+    + Date
+    + Location (State , City)
+    + Signs of Mental Illness
+    + Armed
+    + Manner of Death
+    + Threat Level
+    + Flee
+    
+```{r}
+#Top 10 Weapons in Possession of Killed Citizen 
+tbl_armed<- table(dt$armed)
+  tbl_armed<-tbl_armed[order(tbl_armed)]
+  
+  top10_armed<-tail(tbl_armed,n=10)
+  top10_armed.df<-data.frame(top10_armed)
+  print(
+      paste(
+              'Top 10 Armed Statuses Account for' , 
+                    as.character(sum(top10_armed)/sum(tbl_armed)*100) , 
+                    '% of National Occurrences'
+            ),sep = ''
+      )
+  
+gTopArmed<-ggplot(data = top10_armed.df, aes(x=Var1,y=Freq))+geom_bar(stat='identity')+
+    geom_bar(stat='identity',fill='red')+
+    xlab('Armed')+ylab('Associated Deaths 2015-2016')  +coord_flip()
+
+#State Distribution of Police Shootings
+tbl_state<-table(dt$state)
+  tbl_state<-tbl_state[order(tbl_state)]
+  tbl_state.df<-data.frame(tbl_state)
+  
+  top_states<-tail(tbl_state,n=40)
+  top_states.df<-data.frame(top_states)
+  
+  print(paste('Median 2015-2016 State Deaths by Police Shootings is ', median(tbl_state) ))
+  
+  print(
+   paste(
+          'Top 40 States Account for' , 
+                as.character(sum(top_states)/sum(tbl_state)*100) , 
+                '% of National Occurrences'
+        ),sep = ''
+  )
+  
+ggplot(data = data.frame(tbl_state),aes(x=Var1,y=Freq))+
+    geom_bar(stat='identity',fill='red')+coord_flip()+
+    xlab('State')+ylab('Associated Deaths 2015-2016')
 
 ```
+
+
 
 
 
