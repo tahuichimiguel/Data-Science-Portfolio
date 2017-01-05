@@ -4,16 +4,19 @@
   - Uses California Housing Dataset in Scikit-learn
   - **Language:** Python
   - **Goal:** Replicate Analysis and Plots
-
-#### Accelerometer Activity Study: Predict Activity Based on Accelerometer Readings
-  - The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har
-  - **Languages:** Python & R
-  - **Goal:** Predict the manner in which the subject did the exercise. This is the "classe" variable in the training set. 
+  - **Status:** Completed
 
 #### Human Resources Analytics
   - Exploratory data analysis and machine learning modeling of 'Human Resources Analytics' Kaggle dataset.
   - **Language:** R
   - **Goal:** Identify the factors that most strongly predict employee resignation.
+  - **Status:** Completed
+
+#### Accelerometer Activity Study: Predict Activity Based on Accelerometer Readings
+  - The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har
+  - **Languages:** Python & R
+  - **Goal:** Predict the manner in which the subject did the exercise. This is the "classe" variable in the training set. 
+  - **Status:** R Analysis Complete. Python Analysis Still Active.
 
 ***
 
@@ -24,3 +27,4 @@
   - **Languages:** R
   - **Goal 1:** Identify any situational clusters that may correlate with fatal police shootings of US citizens.
   - **Goal 2:** Determine if the data provided by the Washington Post & The Guardian corroborate each other.
+  - **Status:** Active
