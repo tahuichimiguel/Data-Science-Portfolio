@@ -15,6 +15,8 @@
   - **Language:** R
   - **Goal:** Identify the factors that most strongly predict employee resignation.
 
+***
+
 ##Graphical Analysis Case Studies
 
 #### US Police Shooting Study: Graphical 
