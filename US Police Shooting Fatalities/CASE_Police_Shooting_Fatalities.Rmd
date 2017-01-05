@@ -10,93 +10,209 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ##Data Structure & Summary
 ```{r cars}
+#options(warn=-1)
 library(ggplot2)
+library(gridExtra)
 library(maps)
 library(data.table)
 library(lubridate)
+library(RColorBrewer)
 
-setwd('/Users/Mikey/Documents/ML-Case-Studies/US Police Shooting Fatalities')
-dt <- fread('database.csv',sep = ',')
+path='C:/Users/02laram26/Desktop/Kaggle/US Shootings'
+setwd(path)
+
+filenames<-c('Guardian_2015.csv','Guardian_2016.csv','WP_database.csv')
+guard2015.dt<-fread(filenames[1],sep=',')
+guard2016.dt<-fread(filenames[2],sep=',')
+wp.dt<-fread(filenames[3],sep=',')
 
 ##Data Structure & Summary
-summary(dt)
-head(dt)
+summary(guard2015.dt)
+summary(guard2016.dt)
+summary(wp.dt)
+
 ```
 
 ##Data Cleaning
 ```{r}
-dt[,date:=ymd(date)]
-dt[,manner_of_death:=as.factor(manner_of_death)]
-dt[,armed:=as.factor(armed)]
-dt[,gender:=as.factor(gender)]
-dt[,race:=as.factor(race)]
-dt[,signs_of_mental_illness:=as.factor(signs_of_mental_illness)]
-dt[,threat_level:=as.factor(threat_level)]
-dt[,flee:=as.factor(flee)]
-dt[,body_camera:=as.factor(body_camera)]
-dt[,state:=as.factor(state)]
-dt[,YEAR:=year(date)]
+#Data Cleaning
 
-summary(dt)
-dt[,.N,by = year(date)]
+clean.Guard2015 <-function(datafile){
+    datafile[,age:=ifelse(age=='Unknown',-1,age)] #-1: Unknown
+    
+    datafile[,uid:=as.numeric(uid)]
+    datafile[,age:=as.numeric(age)]
+    datafile[,gender:=as.factor(gender)]
+    
+    datafile[,race:=as.factor(raceethnicity)]
+    datafile[,raceethnicity:=NULL]
+    
+    datafile[,armed:=as.factor(armed)]
+    datafile[,day:=as.factor(day)]
+    datafile[,state:=as.factor(state)]
+    datafile[,classification:=as.factor(classification)]
+    
+    datafile
+}
+
+clean.Guard2016<-function(datafile){
+    datafile[,age:=ifelse(age=='Unknown',-1,age)] #-1: Unknown
+    datafile[,age:=ifelse(age=='40s',-2,age)] #-1: 'Unknown'40s'
+
+    datafile[,uid:=as.numeric(uid)]
+    datafile[,age:=as.numeric(age)]
+    datafile[,gender:=as.factor(gender)]
+
+    datafile[,race:=as.factor(raceethnicity)]
+    datafile[,raceethnicity:=NULL]
+    
+    datafile[,armed:=as.factor(armed)]
+    datafile[,day:=as.factor(day)]
+    datafile[,state:=as.factor(state)]
+    datafile[,classification:=as.factor(classification)]
+    
+    datafile
+}
+
+clean.wp<-function(datafile){
+    datafile[,date:=ymd(date)]
+    datafile[,manner_of_death:=as.factor(manner_of_death)]
+    datafile[,armed:=as.factor(armed)]
+    datafile[,gender:=as.factor(gender)]
+    datafile[,race:=as.factor(race)]
+    datafile[,signs_of_mental_illness:=as.factor(signs_of_mental_illness)]
+    datafile[,threat_level:=as.factor(threat_level)]
+    datafile[,flee:=as.factor(flee)]
+    datafile[,body_camera:=as.factor(body_camera)]
+    datafile[,state:=as.factor(state)]
+   
+    datafile[,year:=day(date)] 
+    datafile[,month:=month(date,label=TRUE,abbr=FALSE)]
+    datafile[,year:=year(date)]
+    
+    datafile
+}
 ```
 
-#EDA
-
-###Victim Descriptors
-    + Name
-    + Age
-    + Race
-    + Gender
-    
-###Officer Descriptors
-    + Body Camera
-    
 ```{r}
-#Victim Age Distribution each Year
-gAge<-ggplot(data = dt, aes(age,fill=as.factor(YEAR)))+
-  geom_histogram(bins=35)+ facet_grid(.~YEAR) +
-  scale_fill_discrete(guide=FALSE)+theme(text = element_text(size = 15))
+#Create Single data table for each source
+clean.guard.dt<-rbindlist(
+                    list(
+                        clean.Guard2015(guard2015.dt),
+                        clean.Guard2016(guard2016.dt)
+                        ),
+                    use.names=TRUE
+                    )
 
-  dt[!is.na(age),.(median=as.double(median(age)),SD=sd(age)),by="YEAR"]
+clean.wp.dt<-clean.wp(wp.dt)
 
-#Police Killings by Race
-tbl_race<-table(dt$race)
-  tbl_race<-tbl_race[order(tbl_race)]
-  tbl_race.df<-data.frame(tbl_race)
-  
-gRace<- ggplot(data=tbl_race.df, aes(x=Var1,y=Freq))+
-    geom_bar(stat='identity',fill='red')+
-    xlab('Race')+ylab('Total Killings 2015-2016')+
-    theme(text = element_text(size = 15))+
-    coord_flip()  
+```
+
+#Exploratory Data Analysis
+
+Victim Descriptors  | ##Officer Descriptors | Situation Descriptors
+    ------------    | -------------         |   ------------- 
+    Name            |  Body Camera          |   Date
+    Age             |  -------------        |   Location (State , City)
+    Race            |  -------------        |   Signs of Mental Illness
+   -------------    |  -------------        |   Armed
+   -------------    |  -------------        |   Classification of Death
+   -------------    |  -------------        |   Threat Level
+   -------------    |  -------------        |   Flee
+   
+
+##Guardian Data
+
+```{r}
+
+##Victim
+
+    #Age Distribution
+    g.guard.age<-ggplot(data = clean.guard.dt,aes(x=age,fill=as.factor(year)))+
+        geom_histogram(bins=35)+ facet_grid(.~year)+scale_fill_discrete(guide=FALSE)+
+        xlab('Age')+ylab('Fatalities')+    theme(text = element_text(size = 12))
+    
+    #Race Distribution
+    g.guard.race<-ggplot(data=clean.guard.dt, aes(x=reorder(race, table(race)[race]))) + 
+        geom_bar(fill='red')+
+        xlab('Race')+ylab('Total Fatalities 2015-2016')+
+        theme(text = element_text(size = 12))+
+        coord_flip()
+        
+    grid.arrange(g.guard.age,g.guard.race,ncol=1)
+
+##Situation
+    
+    #Location (States)
+    g.guard.state<-ggplot(data=clean.guard.dt, aes(x=reorder(state, table(state)[state]))) + 
+        geom_bar(fill='red')+coord_flip()+
+        xlab('State')+ylab('Fatalities')+
+        theme(text = element_text(size = 10))
+    
+    #Armed
+    g.guard.armed<-ggplot(data=clean.guard.dt, aes(x=reorder(armed, table(armed)[armed]))) + 
+        geom_bar(fill='red')+coord_flip()+
+        xlab('Armed')+ylab('Fatalities')+
+        theme(text = element_text(size = 10))
+    
+    #Cause of Death
+    g.guard.class<-ggplot(data=clean.guard.dt, 
+                          aes(x=reorder(classification, 
+                                        table(classification)[classification]))) + 
+        geom_bar(fill='red')+coord_flip()+
+        xlab('Cause of Death')+ylab('Fatalities')+
+        theme(text = element_text(size = 10))
+    
+    g.guard.state
+    grid.arrange(g.guard.class,g.guard.armed,ncol=2)
+
+
 ```
 
 
-###Situation Descriptors
-    + Date
-    + Location (State , City)
-    + Signs of Mental Illness
-    + Armed
-    + Manner of Death
-    + Threat Level
-    + Flee
-    
+#Washington Post Data
 ```{r}
-#Top 10 Weapons in Possession of Killed Citizen 
+
+##Victim
+
+    #Victim Age Distribution each Year
+    gAge<-ggplot(data = dt, aes(age,fill=as.factor(YEAR)))+
+      geom_histogram(bins=35)+ facet_grid(.~YEAR) +
+      scale_fill_discrete(guide=FALSE)+theme(text = element_text(size = 15))
+    
+      dt[!is.na(age),.(median=as.double(median(age)),SD=sd(age)),by="YEAR"]
+    
+    #Police Killings by Race
+    tbl_race<-table(dt$race)
+      tbl_race<-tbl_race[order(tbl_race)]
+      tbl_race.df<-data.frame(tbl_race)
+    
+    gRace<- ggplot(data=tbl_race.df, aes(x=Var1,y=Freq))+
+        geom_bar(stat='identity',fill='red')+
+        xlab('Race')+ylab('Total Killings 2015-2016')+
+        theme(text = element_text(size = 15))+
+        coord_flip()
+
+##Situation
+
+```
+
+
+```{r}
+#Top 10 Weapons in Possession of Killed Citizen
 tbl_armed<- table(dt$armed)
   tbl_armed<-tbl_armed[order(tbl_armed)]
-  
+
   top10_armed<-tail(tbl_armed,n=10)
   top10_armed.df<-data.frame(top10_armed)
   print(
       paste(
-              'Top 10 Armed Statuses Account for' , 
-                    as.character(sum(top10_armed)/sum(tbl_armed)*100) , 
+              'Top 10 Armed Statuses Account for' ,
+                    as.character(sum(top10_armed)/sum(tbl_armed)*100) ,
                     '% of National Occurrences'
             ),sep = ''
       )
-  
+
 gTopArmed<-ggplot(data = top10_armed.df, aes(x=Var1,y=Freq))+geom_bar(stat='identity')+
     geom_bar(stat='identity',fill='red')+
     xlab('Armed')+ylab('Associated Deaths 2015-2016')  +coord_flip()
@@ -105,27 +221,29 @@ gTopArmed<-ggplot(data = top10_armed.df, aes(x=Var1,y=Freq))+geom_bar(stat='iden
 tbl_state<-table(dt$state)
   tbl_state<-tbl_state[order(tbl_state)]
   tbl_state.df<-data.frame(tbl_state)
-  
+
   top_states<-tail(tbl_state,n=40)
   top_states.df<-data.frame(top_states)
-  
-  print(paste('Median 2015-2016 State Deaths by Police Shootings is ', median(tbl_state) ))
-  
+
+  print(paste('Median 2015-2016 State Deaths by Police Shootings is ',
+              median(tbl_state) ))
+
   print(
    paste(
-          'Top 40 States Account for' , 
-                as.character(sum(top_states)/sum(tbl_state)*100) , 
+          'Top 40 States Account for' ,
+                as.character(sum(top_states)/sum(tbl_state)*100) ,
                 '% of National Occurrences'
         ),sep = ''
   )
-  
+
 ggplot(data = data.frame(tbl_state),aes(x=Var1,y=Freq))+
     geom_bar(stat='identity',fill='red')+coord_flip()+
     xlab('State')+ylab('Associated Deaths 2015-2016')
 
 ```
 
-Map of USA
+# Map of USA
+ 
 ```{r}
 states <- map_data("state")
  arrests <- USArrests
