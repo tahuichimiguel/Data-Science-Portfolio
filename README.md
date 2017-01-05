@@ -22,4 +22,5 @@
 #### US Police Shooting Study: Graphical 
   - Three .CSV files from 2 separate Kaggle Datasets are used for this analysis. The 2 datasets were compiled by separate news entities: Washington Post & The Guardian.
   - **Languages:** R
-  - **Goal:** Identify any situational clusters that may correlate with fatal police shootings of US citizens.
+  - **Goal 1:** Identify any situational clusters that may correlate with fatal police shootings of US citizens.
+  - **Goal 2:** Determine if the data provided by the Washington Post & The Guardian corroborate each other.
