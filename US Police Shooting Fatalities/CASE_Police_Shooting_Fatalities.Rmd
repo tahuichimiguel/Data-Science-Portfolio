@@ -11,6 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ##Data Structure & Summary
 ```{r cars}
 library(ggplot2)
+library(maps)
 library(data.table)
 library(lubridate)
 
@@ -124,7 +125,20 @@ ggplot(data = data.frame(tbl_state),aes(x=Var1,y=Freq))+
 
 ```
 
+Map of USA
+```{r}
+states <- map_data("state")
+ arrests <- USArrests
+ names(arrests) <- tolower(names(arrests))
+ arrests$region <- tolower(rownames(USArrests))
 
+choro <- merge(states, arrests, sort = FALSE, by = "region")
+choro <- choro[order(choro$order), ]
+
+ggplot(choro, aes(long, lat)) +
+geom_polygon(aes(group = group, fill = assault/murder)) +
+    coord_map("albers",  at0 = 45.5, lat1 = 29.5)
+```
 
 
 
