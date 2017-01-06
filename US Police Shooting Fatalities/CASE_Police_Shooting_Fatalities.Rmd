@@ -18,7 +18,7 @@ library(data.table)
 library(lubridate)
 library(RColorBrewer)
 
-path='C:/Users/02laram26/Desktop/Kaggle/US Shootings'
+path='/Users/Mikey/Documents/Case-Studies/US Police Shooting Fatalities'
 setwd(path)
 
 filenames<-c('Guardian_2015.csv','Guardian_2016.csv','WP_database.csv')
@@ -110,21 +110,19 @@ clean.wp.dt<-clean.wp(wp.dt)
 
 #Exploratory Data Analysis
 
-Victim Descriptors  | ##Officer Descriptors | Situation Descriptors
-    ------------    | -------------         |   ------------- 
-    Name            |  Body Camera          |   Date
-    Age             |  -------------        |   Location (State , City)
-    Race            |  -------------        |   Signs of Mental Illness
-   -------------    |  -------------        |   Armed
-   -------------    |  -------------        |   Classification of Death
-   -------------    |  -------------        |   Threat Level
-   -------------    |  -------------        |   Flee
-   
-
+Victim Descriptors      | Officer Descriptors   | Situation Descriptors
+    ------------        | -------------         |   ------------- 
+    Name(G & WP)        |  Body Camera          |   Date(G & WP)
+    Age(G & WP)         |  -------------        |   Location (G & WP)
+    Race(G & WP)        |  -------------        |   Signs of Mental Illness
+    Gender(G & WP)      |  -------------        |   Armed(G & WP)
+    Signs of Mental Illness (WP)    |  -------------        |   Classification/Manner of Death (G & WP)
+    -------------       |  -------------        |   Threat Level (WP)
+    -------------       |  -------------        |   Flee (WP)
+    -------------     |  -------------          |   Law Enforcement Agency
 ##Guardian Data
 
 ```{r}
-
 ##Victim
 
     #Age Distribution
@@ -172,33 +170,45 @@ Victim Descriptors  | ##Officer Descriptors | Situation Descriptors
 
 #Washington Post Data
 ```{r}
-
 ##Victim
 
     #Victim Age Distribution each Year
-    gAge<-ggplot(data = dt, aes(age,fill=as.factor(YEAR)))+
-      geom_histogram(bins=35)+ facet_grid(.~YEAR) +
+    g.wp.age<-ggplot(data = clean.wp.dt, aes(age,fill=as.factor(year)))+
+      geom_histogram(bins=35)+ facet_grid(.~year) +xlab('Age')+ylab('Fatalities')+
       scale_fill_discrete(guide=FALSE)+theme(text = element_text(size = 15))
     
-      dt[!is.na(age),.(median=as.double(median(age)),SD=sd(age)),by="YEAR"]
-    
     #Police Killings by Race
-    tbl_race<-table(dt$race)
-      tbl_race<-tbl_race[order(tbl_race)]
-      tbl_race.df<-data.frame(tbl_race)
-    
-    gRace<- ggplot(data=tbl_race.df, aes(x=Var1,y=Freq))+
-        geom_bar(stat='identity',fill='red')+
-        xlab('Race')+ylab('Total Killings 2015-2016')+
+    g.wp.race<- ggplot(data=clean.wp.dt, aes(x=reorder(race,table(race)[race])))+
+        geom_bar(fill='red')+ 
+        xlab('Race')+ylab('Fatalities 2015-2016')+
         theme(text = element_text(size = 15))+
         coord_flip()
 
+    grid.arrange(g.wp.age,g.wp.race,ncol=1)
+
+    dt[!is.na(age),.(median=as.double(median(age)),SD=sd(age)),by="YEAR"]
+    
 ##Situation
 
+    #Location (States)
+    g.wp.state<-ggplot(data=clean.wp.dt, aes(x=reorder(state, table(state)[state]))) + 
+        geom_bar(fill='red')+coord_flip()+
+        xlab('State')+ylab('Fatalities')+
+        theme(text = element_text(size = 10))
+    
+    #Armed
+    g.wp.armed<-ggplot(data=clean.wp.dt, aes(x=reorder(armed, table(armed)[armed]))) + 
+        geom_bar(fill='red')+coord_flip()+
+        xlab('Armed')+ylab('Fatalities')+
+        theme(text = element_text(size = 10))
 ```
 
 
-```{r}
+
+
+```{r}    
+#Previous WP 'TOP' Analysis
+
 #Top 10 Weapons in Possession of Killed Citizen
 tbl_armed<- table(dt$armed)
   tbl_armed<-tbl_armed[order(tbl_armed)]
