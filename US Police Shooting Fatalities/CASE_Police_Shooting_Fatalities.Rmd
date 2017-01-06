@@ -1,7 +1,9 @@
 ---
 title: "Fatal Police Shootings"
-author: "Mikhail Lara"
-output: html_document
+output: 
+    html_document:
+        code_folding: hide
+
 ---
 
 ```{r setup, include=FALSE}
@@ -10,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ##Data Structure & Summary
 ```{r cars}
-#options(warn=-1)
+options(warn=-1,verbose=FALSE)
 library(ggplot2)
 library(gridExtra)
 library(maps)
@@ -18,7 +20,7 @@ library(data.table)
 library(lubridate)
 library(RColorBrewer)
 
-path='/Users/Mikey/Documents/ML-Case-Studies/US Police Shooting Fatalities'
+path='C:/Users/02laram26/Desktop/Kaggle/US Shootings'
 setwd(path)
 
 filenames<-c('Guardian_2015.csv','Guardian_2016.csv','WP_database.csv')
@@ -27,13 +29,13 @@ guard2016.dt<-fread(filenames[2],sep=',')
 wp.dt<-fread(filenames[3],sep=',')
 
 ##Data Structure & Summary
-summary(guard2015.dt)
-summary(guard2016.dt)
-summary(wp.dt)
+#summary(guard2015.dt)
+#summary(guard2016.dt)
+#summary(wp.dt)
 
 ```
 
-##Data Cleaning
+##Data Cleaning & Miscellaneous Functions
 ```{r}
 #Data Cleaning
 
@@ -94,6 +96,16 @@ clean.wp<-function(datafile){
     
     datafile
 }
+
+tbl.ECDF<-function(datatable){
+    ECDF<-vector(mode='numeric',length = length(datatable))
+    
+    for (i in 1:nrow(datatable)) {
+       ECDF[i]<-sum(datatable[nrow(wp.tbl_armed):(nrow(wp.tbl_armed)-(i-1))])    
+    }
+    
+    ECDF<-ECDF/sum(datatable)
+}
 ```
 
 ```{r}
@@ -105,49 +117,47 @@ clean.guard.dt<-rbindlist(
                         ),
                     use.names=TRUE
                     )
+    clean.guard.dt[,year:=as.factor(year)]
 
 clean.wp.dt<-clean.wp(wp.dt)
+    clean.wp.dt[,year:=as.factor(year)]
+
 
 ```
 
 #Exploratory Data Analysis
 
-Victim Descriptors      | Officer Descriptors   | Situation Descriptors
-    ------------        | -------------         |   ------------- 
-    Name(G & WP)        |  Body Camera          |   Date(G & WP)
-    Age(G & WP)         |  -------------        |   Location (G & WP)
-    Race(G & WP)        |  -------------        |   Signs of Mental Illness
-    Gender(G & WP)      |  -------------        |   Armed(G & WP)
-    Signs of Mental Illness (WP)    |  -------------        |   Classification/Manner of Death (G & WP)
-    -------------       |  -------------        |   Threat Level (WP)
-    -------------       |  -------------        |   Flee (WP)
-    -------------     |  -------------          |   Law Enforcement Agency
-##Guardian Data
 
-```{r}
+*Victim Descriptors*            | *Officer Descriptors* | *Situation Descriptors*
+------------                    | -------------         | ------------- 
+Name(G & WP)                    | Body Camera           | Date(G & WP)
+Age(G & WP)                     | -------------         | Location (G & WP)
+Race(G & WP)                    | -------------         | Signs of Mental Illness (WP)
+Gender(G & WP)                  | -------------         | Armed(G & WP)
+Signs of Mental Illness (WP)    | -------------         | Classification/Manner of Death (G & WP)
+-------------                   | -------------         | Threat Level (WP)
+-------------                   | -------------         | Flee (WP)
+-------------                   | -------------         | Law Enforcement Agency(G)
+
+###Guardian Data
+```{r,fig.height=10,fig.width=20}
 ##Victim
 
     #Age Distribution
-    g.guard.age<-ggplot(data = clean.guard.dt,aes(x=age))+
-        geom_histogram(data=subset(clean.guard.dt[age>=0,],year == '2015'),
-                       fill = "red", alpha = 0.5,bins=35) +
-        geom_histogram(data=subset(clean.guard.dt[age>=0,],year == '2016'),
-                       fill = "blue", alpha = 0.5,bins=35) +
-        scale_fill_discrete(guide=FALSE)+
-        ggtitle("The Guardian: Victim Information") + 
+    g.guard.age<-ggplot(data = clean.guard.dt[age>=0],aes(x=age,fill=year))+
+        geom_histogram(position='identity',alpha=0.5,binwidth = 5)+
         xlab('Victim Age')+ylab('Fatalities')+theme(text = element_text(size = 12))+
         annotate("text", x = 70, y = 100, 
-                 label = paste('Median Age = ',median(clean.guard.dt$age)))
-
+                 label = paste('Median Age = ',median(clean.guard.dt[age>=0]$age)))
     
     #Race Distribution
     g.guard.race<-ggplot(data=clean.guard.dt, aes(x=reorder(race, table(race)[race]))) + 
         geom_bar(fill='red')+
         xlab('Race')+ylab('Total Fatalities 2015-2016')+
-        theme(text = element_text(size = 12))+
+        theme(text = element_text(size = 15))+
         coord_flip()
-        
-    grid.arrange(g.guard.age,g.guard.race,ncol=1)
+    
+    grid.arrange(g.guard.age,g.guard.race,ncol=2)
 
 ##Situation
     
@@ -156,123 +166,141 @@ Victim Descriptors      | Officer Descriptors   | Situation Descriptors
                           aes(x=reorder(state, table(state)[state]))) + 
         geom_bar(fill='red')+coord_flip()+
         xlab('State')+ylab('Fatalities')+
-        theme(text = element_text(size = 10))
+        theme(text = element_text(size = 15))
     
     #Armed
     g.guard.armed<-ggplot(data=clean.guard.dt, 
-                          aes(x=reorder(armed, table(armed)[armed]))) + 
-        geom_bar(fill='red')+coord_flip()+
-        xlab('Armed')+ylab('Fatalities')+
-        theme(text = element_text(size = 10))
+                          aes(x=reorder(armed, table(armed)[armed]),fill=race)) + 
+        geom_bar()+ scale_fill_brewer(palette = 'BrBG')+
+        coord_flip()+
+        xlab('Type of Weapon')+ylab('Fatalities')+
+        theme(text = element_text(size = 15))
     
     #Cause of Death
-    g.guard.class<-ggplot(data=clean.guard.dt, 
+    g.guard.COD<-ggplot(data=clean.guard.dt, 
                           aes(x=reorder(classification, 
                                         table(classification)[classification]))) + 
         geom_bar(fill='red')+coord_flip()+
         xlab('Cause of Death')+ylab('Fatalities')+
-        theme(text = element_text(size = 10))
+        theme(text = element_text(size = 15))
     
-    g.guard.state
-    grid.arrange(g.guard.class,g.guard.armed,ncol=2)
+    grid.arrange(g.guard.state,g.guard.COD,g.guard.armed,ncol=3)
 
 
 ```
 
 
-#Washington Post Data
-```{r}
+###Washington Post Data
+```{r,fig.height=10,fig.width=15}
 ##Victim
 
     #Victim Age Distribution each Year
-    g.wp.age<-ggplot(data = clean.wp.dt,aes(x=age))+
-        geom_histogram(data=subset(clean.wp.dt[age>=0,],year==2015),
-                       fill='red',bins=35,alpha=0.5)+
-        geom_histogram(data=subset(clean.wp.dt[age>=0,],year==2016),
-                       fill='blue',bins=35,alpha=0.5)+
-        ggtitle("Washington Post: Victim Information") + 
+    g.wp.age<-ggplot(data = clean.wp.dt[age>=0],aes(x=age,fill=year))+
+        geom_histogram(position='identity',alpha=0.5,binwidth = 5)+
         xlab('Age')+ylab('Fatalities')+
-        scale_fill_discrete(guide=FALSE)+theme(text = element_text(size = 15))+
+        theme(text = element_text(size = 15))+
         annotate("text", x = 70, y = 75, 
-                 label = paste('Median Age = ',median(clean.wp.dt$age)))
+                 label = paste('Median Age = ',median(clean.wp.dt[age>=0]$age)))
     
     #Police Killings by Race
     g.wp.race<- ggplot(data=clean.wp.dt, aes(x=reorder(race,table(race)[race])))+
-        geom_bar(fill='red')+ 
+        geom_bar()+ scale_fill_brewer(palette = 'BrBG')+
         xlab('Race')+ylab('Fatalities 2015-2016')+
         theme(text = element_text(size = 15))+
         coord_flip()
 
-    grid.arrange(g.wp.age,g.wp.race,ncol=1)
+    grid.arrange(g.wp.age,g.wp.race,ncol=3)
 
-    dt[!is.na(age),.(median=as.double(median(age)),SD=sd(age)),by="YEAR"]
-    
 ##Situation
 
     #Location (States)
     g.wp.state<-ggplot(data=clean.wp.dt, aes(x=reorder(state, table(state)[state]))) + 
         geom_bar(fill='red')+coord_flip()+
         xlab('State')+ylab('Fatalities')+
-        theme(text = element_text(size = 10))
+        theme(text = element_text(size = 15))
     
     #Armed
-    g.wp.armed<-ggplot(data=clean.wp.dt, aes(x=reorder(armed, table(armed)[armed]))) + 
-        geom_bar(fill='red')+coord_flip()+
-        xlab('Armed')+ylab('Fatalities')+
-        theme(text = element_text(size = 10))
+    g.wp.armed<-ggplot(data=clean.wp.dt, aes(x=reorder(armed, table(armed)[armed]),fill=race)) + 
+        geom_bar()+ scale_fill_brewer(palette = 'BrBG')+
+        coord_flip()+
+        xlab('Type of Weapon')+ylab('Fatalities')+
+        theme(text = element_text(size = 15))
+    
+    
+    clean.wp.dt[,.N,by=manner_of_death]
+    
 ```
 
 
 
-
-```{r}    
-#Previous WP 'TOP' Analysis
-
-#Top 10 Weapons in Possession of Killed Citizen
-tbl_armed<- table(dt$armed)
-  tbl_armed<-tbl_armed[order(tbl_armed)]
-
-  top10_armed<-tail(tbl_armed,n=10)
-  top10_armed.df<-data.frame(top10_armed)
-  print(
+#Numerical Analysis & Inference
+```{r,eval=FALSE,include=FALSE}    
+#Top 95% of Weapons in Possession of Killed Citizen
+wp.tbl.armed<- table(clean.wp.dt$armed)
+    wp.tbl.armed<-wp.tbl_armed[order(wp.tbl.armed)]
+    wp.top10.armed<-tail(wp.tbl.armed,n=12)
+    
+    wp.armed.ECDF<-tbl.ECDF(wp.tbl.armed) #ECDF of WP weapons
+    
+    print(
       paste(
-              'Top 10 Armed Statuses Account for' ,
-                    as.character(sum(top10_armed)/sum(tbl_armed)*100) ,
+              'Washington Post: Top 10 Types of Weapons Account for' ,
+                    as.character(sum(wp.top10.armed)/sum(wp.tbl.armed)*100) ,
                     '% of National Occurrences'
             ),sep = ''
       )
 
-gTopArmed<-ggplot(data = top10_armed.df, aes(x=Var1,y=Freq))+geom_bar(stat='identity')+
-    geom_bar(stat='identity',fill='red')+
-    xlab('Armed')+ylab('Associated Deaths 2015-2016')  +coord_flip()
+  
+guard.tbl_armed<- table(clean.guard.dt$armed)
+    guard.tbl.armed<-guard.tbl_armed[order(guard.tbl.armed)]
+    guard.top10.armed<-tail(guard.tbl.armed,n=6)
+    
+    print(
+      paste(
+              'The Guardian: Top 10 Types of Weapons Account for' ,
+                    as.character(sum(guard.top10.armed)/sum(guard.tbl.armed)*100) ,
+                    '% of National Occurrences'
+            ),sep = ''
+      )
+  
 
-#State Distribution of Police Shootings
-tbl_state<-table(dt$state)
-  tbl_state<-tbl_state[order(tbl_state)]
-  tbl_state.df<-data.frame(tbl_state)
+#States with Most Police Shootings - May be useful to Calculate ECDF for G & WP
+wp.tbl.state<-table(clean.wp.dt$state)
+      wp.tbl.state<-wp.tbl.state[order(wp.tbl.state)]
+      N=10
+      wp.top.states<-tail(wp.tbl.state,n=N)
+    
+      print(paste('Median 2015-2016 State Deaths by Police Shootings is ',
+                  median(wp.tbl.state) ))
+    
+      print(
+       paste(
+              'Washington Post:', as.character(N), 'States with the Most Police Shootings Account for' ,
+                    as.character(sum(wp.top.states)/sum(wp.tbl.state)*100) ,
+                    '% of National Police Shooting Fatalities'
+            ),sep = ''
+      )
 
-  top_states<-tail(tbl_state,n=40)
-  top_states.df<-data.frame(top_states)
-
-  print(paste('Median 2015-2016 State Deaths by Police Shootings is ',
-              median(tbl_state) ))
-
-  print(
-   paste(
-          'Top 40 States Account for' ,
-                as.character(sum(top_states)/sum(tbl_state)*100) ,
-                '% of National Occurrences'
-        ),sep = ''
-  )
-
-ggplot(data = data.frame(tbl_state),aes(x=Var1,y=Freq))+
-    geom_bar(stat='identity',fill='red')+coord_flip()+
-    xlab('State')+ylab('Associated Deaths 2015-2016')
+guard.tbl.state<-table(clean.guard.dt[classification=='Gunshot']$state)
+      guard.tbl.state<-guard.tbl.state[order(guard.tbl.state)]
+      N=10
+      guard.top.states<-tail(guard.tbl.state,n=N)
+    
+      print(paste('Median 2015-2016 State Deaths by Police Shootings is ',
+                  median(guard.tbl.state) ))
+    
+      print(
+       paste(
+              'Guardian:', as.character(N), 'States with the Most Police Shootings Account for' ,
+                    as.character(sum(guard.top.states)/sum(guard.tbl.state)*100) ,
+                    '% of Police Shooting Fatalities'
+            ),sep = ''
+      )
 
 ```
 
 # Map of USA
-```{r}
+```{r,eval=FALSE,include=FALSE}
 states <- map_data("state")
  arrests <- USArrests
  names(arrests) <- tolower(names(arrests))
