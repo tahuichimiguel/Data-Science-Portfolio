@@ -18,7 +18,7 @@ library(data.table)
 library(lubridate)
 library(RColorBrewer)
 
-path='/Users/Mikey/Documents/Case-Studies/US Police Shooting Fatalities'
+path='/Users/Mikey/Documents/ML-Case-Studies/US Police Shooting Fatalities'
 setwd(path)
 
 filenames<-c('Guardian_2015.csv','Guardian_2016.csv','WP_database.csv')
@@ -86,6 +86,8 @@ clean.wp<-function(datafile){
     datafile[,body_camera:=as.factor(body_camera)]
     datafile[,state:=as.factor(state)]
    
+    datafile[,age:=ifelse(is.na(age),-3,age)]
+    
     datafile[,year:=day(date)] 
     datafile[,month:=month(date,label=TRUE,abbr=FALSE)]
     datafile[,year:=year(date)]
@@ -126,9 +128,17 @@ Victim Descriptors      | Officer Descriptors   | Situation Descriptors
 ##Victim
 
     #Age Distribution
-    g.guard.age<-ggplot(data = clean.guard.dt,aes(x=age,fill=as.factor(year)))+
-        geom_histogram(bins=35)+ facet_grid(.~year)+scale_fill_discrete(guide=FALSE)+
-        xlab('Age')+ylab('Fatalities')+    theme(text = element_text(size = 12))
+    g.guard.age<-ggplot(data = clean.guard.dt,aes(x=age))+
+        geom_histogram(data=subset(clean.guard.dt[age>=0,],year == '2015'),
+                       fill = "red", alpha = 0.5,bins=35) +
+        geom_histogram(data=subset(clean.guard.dt[age>=0,],year == '2016'),
+                       fill = "blue", alpha = 0.5,bins=35) +
+        scale_fill_discrete(guide=FALSE)+
+        ggtitle("The Guardian: Victim Information") + 
+        xlab('Victim Age')+ylab('Fatalities')+theme(text = element_text(size = 12))+
+        annotate("text", x = 70, y = 100, 
+                 label = paste('Median Age = ',median(clean.guard.dt$age)))
+
     
     #Race Distribution
     g.guard.race<-ggplot(data=clean.guard.dt, aes(x=reorder(race, table(race)[race]))) + 
@@ -142,13 +152,15 @@ Victim Descriptors      | Officer Descriptors   | Situation Descriptors
 ##Situation
     
     #Location (States)
-    g.guard.state<-ggplot(data=clean.guard.dt, aes(x=reorder(state, table(state)[state]))) + 
+    g.guard.state<-ggplot(data=clean.guard.dt, 
+                          aes(x=reorder(state, table(state)[state]))) + 
         geom_bar(fill='red')+coord_flip()+
         xlab('State')+ylab('Fatalities')+
         theme(text = element_text(size = 10))
     
     #Armed
-    g.guard.armed<-ggplot(data=clean.guard.dt, aes(x=reorder(armed, table(armed)[armed]))) + 
+    g.guard.armed<-ggplot(data=clean.guard.dt, 
+                          aes(x=reorder(armed, table(armed)[armed]))) + 
         geom_bar(fill='red')+coord_flip()+
         xlab('Armed')+ylab('Fatalities')+
         theme(text = element_text(size = 10))
@@ -173,9 +185,16 @@ Victim Descriptors      | Officer Descriptors   | Situation Descriptors
 ##Victim
 
     #Victim Age Distribution each Year
-    g.wp.age<-ggplot(data = clean.wp.dt, aes(age,fill=as.factor(year)))+
-      geom_histogram(bins=35)+ facet_grid(.~year) +xlab('Age')+ylab('Fatalities')+
-      scale_fill_discrete(guide=FALSE)+theme(text = element_text(size = 15))
+    g.wp.age<-ggplot(data = clean.wp.dt,aes(x=age))+
+        geom_histogram(data=subset(clean.wp.dt[age>=0,],year==2015),
+                       fill='red',bins=35,alpha=0.5)+
+        geom_histogram(data=subset(clean.wp.dt[age>=0,],year==2016),
+                       fill='blue',bins=35,alpha=0.5)+
+        ggtitle("Washington Post: Victim Information") + 
+        xlab('Age')+ylab('Fatalities')+
+        scale_fill_discrete(guide=FALSE)+theme(text = element_text(size = 15))+
+        annotate("text", x = 70, y = 75, 
+                 label = paste('Median Age = ',median(clean.wp.dt$age)))
     
     #Police Killings by Race
     g.wp.race<- ggplot(data=clean.wp.dt, aes(x=reorder(race,table(race)[race])))+
@@ -253,7 +272,6 @@ ggplot(data = data.frame(tbl_state),aes(x=Var1,y=Freq))+
 ```
 
 # Map of USA
- 
 ```{r}
 states <- map_data("state")
  arrests <- USArrests
