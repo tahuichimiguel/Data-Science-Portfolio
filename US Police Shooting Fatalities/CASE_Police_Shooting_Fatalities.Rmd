@@ -21,7 +21,7 @@ library(lubridate)
 library(RColorBrewer)
 library(corrplot)
 
-path='/Users/Mikey/Documents/ML-Case-Studies/US Police Shooting Fatalities'
+path='C:/Users/02laram26/Desktop/Kaggle/US Shootings'
 setwd(path)
 
 filenames<-c('Guardian_2015.csv','Guardian_2016.csv','WP_database.csv')
@@ -318,7 +318,7 @@ cond.target<-function(field, target){
     age.levels <- as.character(c(1:17))
     
     month.levels <- c(" 'January' " ," 'February' ", " 'March' "," 'April' "," 'May' ", " 'June' ", " 'July' ",
-                        " 'August' "," 'September' ", " 'October' ", " 'November' ", "'December' ")
+                        " 'August' "," 'September' ", " 'October' ", " 'November' ", " 'December' ")
     
     armed.levels<-c( " 'Disputed' " ," 'Firearm' "," 'Knife' "," 'No' ",
                      " 'Non-lethal firearm' "," 'Other' "," 'Unknown' "," 'Vehicle' ")           
@@ -339,34 +339,36 @@ cond.target<-function(field, target){
 
 
 #v('gunshot' & 'male') = [ [age], [month] ,[armed], [race] ]
-
 #age.levels <- as.character(c(1:17))
-age.levels <- c('Age:<5', 'Age:5-10','Age:11-15','Age:16-20','Age:21-25','Age:26-30','Age:31-35',
-                'Age:36-40','Age:41-45','Age:46-50','Age:51-55','Age:56-60',
-                'Age:61-65','Age:66-70','Age:71-75','Age:76-80','Age:81-85')
+age.levels <- c('Age:5-10','Age:11-15','Age:16-20',
+                'Age:21-25','Age:26-30','Age:31-35','Age:36-40',
+                'Age:41-45','Age:46-50','Age:51-55','Age:56-60',
+                'Age:61-65','Age:66-70','Age:71-75','Age:76-80',
+                'Age:81-85','Age:86-90')
 
-month.levels <- c(" 'Month:January' " ," 'Month:February' ", " 'Month:March' "," 'Month:April' "," 'Month:May' ", 
-                  " 'Month:June' ", " 'Month:July' ", " 'Month:August' "," 'Month:September' ", 
-                  " 'Month:October' ", " 'Month:November' ", "'Month:December' ")
+month.levels <- c( 'Month:January'  , 'Month:February' ,  'Month:March' , 'Month:April' , 'Month:May' , 
+                   'Month:June' ,  'Month:July' ,  'Month:August' , 'Month:September' , 
+                   'Month:October' ,  'Month:November' , 'Month:December' )
 
-armed.levels<-c( " 'Armed:Disputed' " ," 'Armed:Firearm' "," 'Armed:Knife' "," 'Armed:No' ",
-                 " 'Armed:Non-lethal firearm' "," 'Armed:Other' "," 'Armed:Unknown' "," 'Armed:Vehicle' ")           
+armed.levels<-c(  'Armed:Disputed'  , 'Armed:Firearm' , 'Armed:Knife' , 'Armed:No' ,
+                  'Armed:Non-lethal firearm' , 'Armed:Other' , 'Armed:Unknown' , 'Armed:Vehicle' )           
 
-race.levels<-c(" 'Race:Arab-American' "," 'Race:Asian/Pacific Islander' ", " 'Race:Black' ",
-               " 'Race:Hispanic/Latino' ", " 'Race:Native American' ",
-               " 'Race:Other' "," 'Race:Unknown' "," 'Race:White' " )
+race.levels<-c( 'Race:Arab-American' , 'Race:Asian/Pacific Islander' ,  'Race:Black' ,
+                'Race:Hispanic/Latino' ,  'Race:Native American' ,
+                'Race:Other' , 'Race:Unknown' , 'Race:White'  )
 
 pred.names<-c(age.levels,month.levels,armed.levels,race.levels)
 
-age.bins.N <-length(unique(clean.guard.dt[(age>=0 & classification=='Gunshot' & gender =='Male'),.(age=(age-age%%5)),]$age))
-month.N <- length(levels(as.factor(clean.guard.dt[(age>=0 & classification=='Gunshot' & gender =='Male')]$month)))
-armed.N <- length(levels(clean.guard.dt[(age>=0 & classification=='Gunshot' & gender =='Male')]$armed))
-race.N<-length(levels(clean.guard.dt[(age>=0 & classification=='Gunshot' & gender =='Male')]$race))
+age.bins.N <-length(age.levels)
+month.N <- length(month.levels)
+armed.N <- length(armed.levels)
+race.N<-length(race.levels)
 
 total.levels<-age.bins.N+month.N+armed.N+race.N
 
 mat.heat<-matrix(nrow=total.levels,ncol=total.levels)
-mat.heat.norm<-matrix(nrow=total.levels,ncol=total.levels)
+#mat.heat.norm<-matrix(nrow=total.levels,ncol=total.levels)
+
 for (i in 1:total.levels) {
     cond1.field<-ifelse(i<age.bins.N,1,
                     ifelse(i<age.bins.N+month.N,2,
@@ -394,9 +396,18 @@ for (i in 1:total.levels) {
         print(i)
         print(j)
         
-        mat.heat[j,i]<- nrow(clean.guard.dt[((age>=0) & eval(cond1) & eval(cond2))])   
-        mat.heat.norm[j,i]<- nrow(clean.guard.dt[((age>=0) & eval(cond1) & eval(cond2))])/(nrow(clean.guard.dt[
-                                                ((age>=0) & eval(cond1))])+1)          
+        # if(i==j){
+        #     mat.heat[j,i]=NA
+        #     mat.heat.norm[j,i]=NA
+        #     next
+        #     }
+        
+        mat.heat[j,i]<- nrow(clean.guard.dt[((age>=0) & gender=='Male' & classification =='Gunshot' & 
+                                                 eval(cond1) & eval(cond2))])   
+        
+        # mat.heat.norm[j,i]<- nrow(clean.guard.dt[((age>=0) & gender=='Male' & classification =='Gunshot'  & 
+        #                                               eval(cond1) & eval(cond2))])/
+        #                         (nrow(clean.guard.dt[((age>=0) & eval(cond1))])+1)          
 
     }    
 }
@@ -404,8 +415,10 @@ for (i in 1:total.levels) {
 #df.heatmap<-data.frame(mat.heat,row.names=pred.names)
 #names(df.heatmap)<-pred.names
 
-heatmap(mat.heat,labCol=pred.names,labRow = pred.names,
-        main='Male Gunshot Fatalities: Factor Interactions',margins=c(9,9))
+heatmap(mat.heat+1,labCol=pred.names,labRow = pred.names,
+        Rowv = NULL,Colv = NA,scale = 'column',na.rm = FALSE,
+        main='Male Gunshot Fatalities: Factor Interactions',margins=c(9,9),
+        col = rainbow(256) )
 
 print(pred.names)
 
