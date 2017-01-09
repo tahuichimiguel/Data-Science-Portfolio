@@ -19,8 +19,9 @@ library(maps)
 library(data.table)
 library(lubridate)
 library(RColorBrewer)
+library(corrplot)
 
-path='C:/Users/02laram26/Desktop/Kaggle/US Shootings'
+path='/Users/Mikey/Documents/ML-Case-Studies/US Police Shooting Fatalities'
 setwd(path)
 
 filenames<-c('Guardian_2015.csv','Guardian_2016.csv','WP_database.csv')
@@ -96,7 +97,10 @@ clean.wp<-function(datafile){
     
     datafile
 }
+```
 
+Custom Analysis Functions
+```{r}
 tbl.ECDF<-function(datatable){
     ECDF<-vector(mode='numeric',length = length(datatable))
     
@@ -298,6 +302,103 @@ guard.tbl.state<-table(clean.guard.dt[classification=='Gunshot']$state)
       )
 
 ```
+
+#Interaction Heatmap of Guardian Data
+
+Use Male Gunshot Data - Subset on Gender & Classification
+* Variables of Interest
+        + Ordinal: age, month
+        + Factors: armed(8) race(8)
+
+```{r}
+
+cond.target<-function(field, target){
+    #(target-target%%5)/5 + 1
+    
+    age.levels <- as.character(c(1:17))
+    
+    month.levels <- c(" 'January' " ," 'February' ", " 'March' "," 'April' "," 'May' ", " 'June' ", " 'July' ",
+                        " 'August' "," 'September' ", " 'October' ", " 'November' ", "'December' ")
+    
+    armed.levels<-c( " 'Disputed' " ," 'Firearm' "," 'Knife' "," 'No' ",
+                     " 'Non-lethal firearm' "," 'Other' "," 'Unknown' "," 'Vehicle' ")           
+
+    race.levels<-c(" 'Arab-American' "," 'Asian/Pacific Islander' ", " 'Black' "," 'Hispanic/Latino' ",       
+                    " 'Native American' "," 'Other' "," 'Unknown' "," 'White' " )
+    
+    v.str <- ifelse(field==1,'((age - age%%5)/5)',
+                  ifelse(field==2,'month',
+                         ifelse(field==3,'armed','race')))
+    
+    trgt.str<-ifelse(field==1,age.levels[target],
+                  ifelse(field==2,month.levels[target],
+                         ifelse(field==3,armed.levels[target],race.levels[target])))
+    
+    paste0(v.str,'==',trgt.str)
+} #Creates Conditional Indexing String
+
+
+#v = [ [age], [month] ,[armed], [race] ]
+
+age.levels <- as.character(c(1:17))
+
+month.levels <- c(" 'January' " ," 'February' ", " 'March' "," 'April' "," 'May' ", " 'June' ", " 'July' ",
+                    " 'August' "," 'September' ", " 'October' ", " 'November' ", "'December' ")
+
+armed.levels<-c( " 'Disputed' " ," 'Firearm' "," 'Knife' "," 'No' ",
+                 " 'Non-lethal firearm' "," 'Other' "," 'Unknown' "," 'Vehicle' ")           
+
+race.levels<-c(" 'Arab-American' "," 'Asian/Pacific Islander' ", " 'Black' "," 'Hispanic/Latino' ",       
+                " 'Native American' "," 'Other' "," 'Unknown' "," 'White' " )
+
+pred.names<-c(age.levels,month.levels,armed.levels,race.levels)
+
+age.bins.N <-length(unique(clean.guard.dt[age>=0,.(age=(age-age%%5)),]$age))
+month.N <- length(levels(as.factor(clean.guard.dt[age>=0]$month)))
+armed.N <- length(levels(clean.guard.dt[age>=0]$armed))
+race.N<-length(levels(clean.guard.dt[age>=0]$race))
+
+total.levels<-age.bins.N+month.N+armed.N+race.N
+
+mat.heat<-matrix(nrow=total.levels,ncol=total.levels)
+
+for (i in 1:total.levels) {
+    cond1.field<-ifelse(i<age.bins.N,1,
+                    ifelse(i<age.bins.N+month.N,2,
+                        ifelse(i<age.bins.N+month.N+armed.N,3,4)))
+    
+    cond1.target<-ifelse(i<age.bins.N,i,
+                    ifelse(i<age.bins.N+month.N,i-age.bins.N,
+                        ifelse(i<age.bins.N+month.N+armed.N,i-age.bins.N-month.N,
+                                        i-age.bins.N-month.N-armed.N)))
+    
+    for (j in 1:total.levels) {
+        cond2.field<-ifelse(j<age.bins.N,1,
+                    ifelse(j<age.bins.N+month.N,2,
+                        ifelse(j<age.bins.N+month.N+armed.N,3,4)))
+        
+        cond2.target<-ifelse(j<age.bins.N,j,
+                    ifelse(j<age.bins.N+month.N,j-age.bins.N,
+                        ifelse(j<age.bins.N+month.N+armed.N,j-age.bins.N-month.N,
+                                        j-age.bins.N-month.N-armed.N)))
+        
+        cond1 <- parse(text=cond.target(cond1.field,cond1.target))
+        cond2 <- parse(text=cond.target(cond2.field,cond2.target))
+        
+        print('')
+        print(i)
+        print(j)
+        
+        mat.heat[j,i]<- nrow(clean.guard.dt[((age>=0) & eval(cond1) & eval(cond2))])            
+    }    
+}
+
+heatmap(mat.heat)
+
+print(pred.names)
+
+```
+
 
 # Map of USA
 ```{r,eval=FALSE,include=FALSE}
