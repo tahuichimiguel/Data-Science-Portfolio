@@ -3,15 +3,14 @@ title: "Fatal Police Shootings"
 output: 
     html_document:
         code_folding: hide
-
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-##Data Structure & Summary
-```{r cars}
+```{r,messages=FALSE,results='hide',warnings=FALSE}
+###Data Structure & Summary
 options(warn=-1,verbose=FALSE)
 library(ggplot2)
 library(gridExtra)
@@ -36,9 +35,9 @@ wp.dt<-fread(filenames[3],sep=',')
 
 ```
 
-##Data Cleaning & Miscellaneous Functions
+
 ```{r}
-#Data Cleaning
+##Data Cleaning & Miscellaneous Functions
 
 clean.Guard2015 <-function(datafile){
     datafile[,age:=ifelse(age=='Unknown',-1,age)] #-1: Unknown
@@ -99,7 +98,7 @@ clean.wp<-function(datafile){
 }
 ```
 
-Custom Analysis Functions
+###Custom Analysis Functions
 ```{r}
 tbl.ECDF<-function(datatable){
     ECDF<-vector(mode='numeric',length = length(datatable))
@@ -112,7 +111,7 @@ tbl.ECDF<-function(datatable){
 }
 ```
 
-```{r}
+```{r,include=FALSE}
 #Create Single data table for each source
 clean.guard.dt<-rbindlist(
                     list(
@@ -129,8 +128,7 @@ clean.wp.dt<-clean.wp(wp.dt)
 
 ```
 
-#Exploratory Data Analysis
-
+###Exploratory Data Analysis
 
 *Victim Descriptors*            | *Officer Descriptors* | *Situation Descriptors*
 ------------                    | -------------         | ------------- 
@@ -143,8 +141,8 @@ Signs of Mental Illness (WP)    | -------------         | Classification/Manner 
 -------------                   | -------------         | Flee (WP)
 -------------                   | -------------         | Law Enforcement Agency(G)
 
-###Guardian Data
-```{r,fig.height=10,fig.width=20}
+####Guardian Data
+```{r,fig.height=10,fig.width=30}
 ##Victim
 
     #Age Distribution
@@ -194,8 +192,8 @@ Signs of Mental Illness (WP)    | -------------         | Classification/Manner 
 ```
 
 
-###Washington Post Data
-```{r,fig.height=10,fig.width=15}
+####Washington Post Data
+```{r,fig.height=10,fig.width=30}
 ##Victim
 
     #Victim Age Distribution each Year
@@ -237,8 +235,7 @@ Signs of Mental Illness (WP)    | -------------         | Classification/Manner 
 
 
 
-#Numerical Analysis & Inference
-```{r,eval=FALSE,include=FALSE}    
+```{r,eval=FALSE}    
 #Top 95% of Weapons in Possession of Killed Citizen
 wp.tbl.armed<- table(clean.wp.dt$armed)
     wp.tbl.armed<-wp.tbl_armed[order(wp.tbl.armed)]
@@ -303,14 +300,11 @@ guard.tbl.state<-table(clean.guard.dt[classification=='Gunshot']$state)
 
 ```
 
-#Interaction Heatmap of Guardian Data
+#Interaction of Guardian Data
 
-Use Male Gunshot Data - Subset on Gender & Classification
-* Variables of Interest
-        + Ordinal: age, month
-        + Factors: armed(8) race(8)
+**Variables of Interest:** Age, Month, Type of Weapon, & Race
 
-```{r}
+```{r,fig.height=10,fig.width=15}
 
 cond.target<-function(field, target){
     #(target-target%%5)/5 + 1
@@ -363,83 +357,68 @@ age.bins.N <-length(age.levels)
 month.N <- length(month.levels)
 armed.N <- length(armed.levels)
 race.N<-length(race.levels)
-
 total.levels<-age.bins.N+month.N+armed.N+race.N
 
 mat.heat<-matrix(nrow=total.levels,ncol=total.levels)
-#mat.heat.norm<-matrix(nrow=total.levels,ncol=total.levels)
 
 for (i in 1:total.levels) {
-    cond1.field<-ifelse(i<age.bins.N,1,
-                    ifelse(i<age.bins.N+month.N,2,
-                        ifelse(i<age.bins.N+month.N+armed.N,3,4)))
+    cond1.field<-ifelse(i<age.bins.N+1,1,
+                    ifelse(i<age.bins.N+month.N+1,2,
+                        ifelse(i<age.bins.N+month.N+armed.N+1,3,4)))
     
-    cond1.target<-ifelse(i<age.bins.N,i,
-                    ifelse(i<age.bins.N+month.N,i-age.bins.N,
-                        ifelse(i<age.bins.N+month.N+armed.N,i-age.bins.N-month.N,
+    cond1.target<-ifelse(i<age.bins.N+1,i,
+                    ifelse(i<age.bins.N+month.N+1,i-age.bins.N,
+                        ifelse(i<age.bins.N+month.N+armed.N+1,i-age.bins.N-month.N,
                                         i-age.bins.N-month.N-armed.N)))
     
     for (j in 1:total.levels) {
-        cond2.field<-ifelse(j<age.bins.N,1,
-                    ifelse(j<age.bins.N+month.N,2,
-                        ifelse(j<age.bins.N+month.N+armed.N,3,4)))
-        
-        cond2.target<-ifelse(j<age.bins.N,j,
-                    ifelse(j<age.bins.N+month.N,j-age.bins.N,
-                        ifelse(j<age.bins.N+month.N+armed.N,j-age.bins.N-month.N,
+        cond2.field<-ifelse(j<age.bins.N+1,1,
+                        ifelse(j<age.bins.N+month.N+1,2,
+                            ifelse(j<age.bins.N+month.N+armed.N+1,3,4)))
+            
+        cond2.target<-ifelse(j<age.bins.N+1,j,
+                    ifelse(j<age.bins.N+month.N+1,j-age.bins.N,
+                        ifelse(j<age.bins.N+month.N+armed.N+1,j-age.bins.N-month.N,
                                         j-age.bins.N-month.N-armed.N)))
         
         cond1 <- parse(text=cond.target(cond1.field,cond1.target))
         cond2 <- parse(text=cond.target(cond2.field,cond2.target))
         
-        print('')
-        print(i)
-        print(j)
-        
-        # if(i==j){
-        #     mat.heat[j,i]=NA
-        #     mat.heat.norm[j,i]=NA
-        #     next
-        #     }
+        if(j==i){#Artificially Zero Correlation with Self
+            mat.heat[j,i]=0
+            next
+        }
         
         mat.heat[j,i]<- nrow(clean.guard.dt[((age>=0) & gender=='Male' & classification =='Gunshot' & 
                                                  eval(cond1) & eval(cond2))])   
-        
-        # mat.heat.norm[j,i]<- nrow(clean.guard.dt[((age>=0) & gender=='Male' & classification =='Gunshot'  & 
-        #                                               eval(cond1) & eval(cond2))])/
-        #                         (nrow(clean.guard.dt[((age>=0) & eval(cond1))])+1)          
-
     }    
 }
 
-#df.heatmap<-data.frame(mat.heat,row.names=pred.names)
-#names(df.heatmap)<-pred.names
-
 heatmap(mat.heat+1,labCol=pred.names,labRow = pred.names,
-        Rowv = NULL,Colv = NA,scale = 'column',na.rm = FALSE,
-        main='Male Gunshot Fatalities: Factor Interactions',margins=c(9,9),
-        col = rainbow(256) )
-
-print(pred.names)
-
+        Rowv = NULL,Colv = NA,scale = 'column', 
+        main='Male Gunshot Fatalities: Factor Interactions',
+        margins=c(9,9),cexRow = 1.25,cexCol = 1.25)
 ```
 
+```{r,results=FALSE}
+top50.vals<-tail(sort(mat.heat),n=100)
+top50.vals<-top50.vals[seq(from=1,to=length(top50.vals),by=2)]
 
-# Map of USA
-```{r,eval=FALSE,include=FALSE}
-states <- map_data("state")
- arrests <- USArrests
- names(arrests) <- tolower(names(arrests))
- arrests$region <- tolower(rownames(USArrests))
+top.cond<-matrix(nrow=1,ncol=3)
+for (i in 1:length(top50.vals)) {
+    top.cond<- rbind(top.cond, c(which(mat.heat==top50.vals[i],arr.ind = TRUE)[1,],top50.vals[i]))
+}
 
-choro <- merge(states, arrests, sort = FALSE, by = "region")
-choro <- choro[order(choro$order), ]
+top.cond<-top.cond[2:nrow(top.cond),]
+top.cond.dt<-data.table(top.cond)
+setnames(top.cond.dt,c('C1','C2','Occurrences'))
 
-ggplot(choro, aes(long, lat)) +
-geom_polygon(aes(group = group, fill = assault/murder)) +
-    coord_map("albers",  at0 = 45.5, lat1 = 29.5)
+top.cond.dt[,Condition1:=pred.names[C1]]
+top.cond.dt[,Condition2:=pred.names[C2]]
+setorderv(top.cond.dt,'Occurrences',-1)
+
+
+print(head(top.cond.dt,n=20))
+
 ```
-
-
-
 
