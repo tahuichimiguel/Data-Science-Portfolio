@@ -22,9 +22,10 @@
 
 ##Graphical Analysis Case Studies
 
-#### US Police Shooting Study: Graphical 
+#### US Police Shooting Study: Graphical Analysis & Predictor Interactions
   - Three .CSV files from 2 separate Kaggle Datasets are used for this analysis. The 2 datasets were compiled by separate news entities: Washington Post & The Guardian.
   - **Languages:** R
   - **Goal 1:** Identify any situational clusters that may correlate with fatal police shootings of US citizens.
   - **Goal 2:** Determine if the data provided by the Washington Post & The Guardian corroborate each other.
   - **Status:** Active
+  - Note: An additional analysis was performed on the Guardian data to investigate conditions that are most commonly associated with gunshot fatalities. The analysis is also posted on the Kaggle Dataset 'The Counted: Killed by Police, 2015-2016'
