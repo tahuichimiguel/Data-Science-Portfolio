@@ -1,0 +1,132 @@
+---
+title: "Glass"
+author: "Mikhail Lara"
+date: "February 2, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries & Data
+
+```{r cars}
+library(data.table)
+library(ggplot2)
+library(GGally)
+library(e1071)
+library(MASS)
+library(caret)
+library(glmnet)
+
+path <-'C:/Users/02laram26/Desktop/Kaggle/glass-classification'
+filename<-'glass.csv'
+setwd(path)
+DT<-fread(filename)
+```
+
+#EDA & Cleaning
+```{r}
+DT[,Type:=as.factor(Type)]
+
+summary(DT)
+print('# of Each Class')
+DT[,.N,by=Type]
+
+#Processing: OMIT ANY Type 6 Glass (Minor Cross-Over with Groups 1[1],2[3],3[1])
+DT.omit6 <- DT[!((K==0)&(Fe==0)&(Ba==0))]
+DT.omit6[,.N,by=Type]
+
+#Remove Barium Outliers
+(Ba>2)
+(Type=='1')&(Ba>0.5)
+
+#Remove K Outliers
+type5.avg.K<-mean(DT.omit6[Type=='5']$K)
+type5.sd.K<-sd(DT.omit6[Type=='5']$K)
+thresh.type5.sd.K<-type5.avg.K+2*sd(DT.omit6[Type=='5']$K)
+(K>thresh.type5.sd.K)&(Type==5)
+
+DT.clean<-DT.omit6[!((Ba>2)|(Type=='1')&(Ba>0.5)|(K>thresh.type5.sd.K)&(Type==5) )]
+DT.clean[,.N,by=Type]
+
+ggplot(data=DT.clean,aes(y=RI,x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1)
+ggplot(data=DT.clean,aes(y=Na,x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Group 7 has higher Na than other groups & is Normal (p=0.001)
+ggplot(data=DT.clean,aes(y=Mg,x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Groups 1,2,3 have much higher Mg than 5&7
+ggplot(data=DT.clean,aes(y=Al,x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Groups 5 & 7 have higher and distinct Al levels than other groups
+ggplot(data=DT.clean,aes(y=Si,x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1)
+ggplot(data=DT.clean,aes(y=K, x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1)  # Groups 7 skew higher for K than other groups
+ggplot(data=DT.clean,aes(y=Ca,x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1)  
+ggplot(data=DT.clean,aes(y=Ba,x=as.factor(Type)))+
+    geom_violin(draw_quantiles=c(0.25,0.75))+geom_jitter(width=.1) # For Group 5 & 7, 7 is somewhat normal (p=0.001) 
+ggplot(data=DT.clean,aes(y=Fe,x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Group 7 has lower Fe than other groups 
+
+
+```
+Type 6 Feature: Has Zero Potassium, Barium, or Iron (Unique Characteristic for that type of glass). 
+Type 7 Feature: Ba 25% Quantile ~ 0.5, which is higher that all other class maxima [Higher Ba ~ Higher P(Type 7)]
+Type 5 & 7 Feature: Mean Mg of Combined Groups are Less than Mean Mg of Combined Groups 1,2,3
+
+##LDA
+```{r pressure, echo=FALSE}
+lda.fit<-lda(Type~.,data = DT.clean)
+lda.fit
+lda.fit$svd
+
+DT.lda<-as.matrix(DT.clean[,-c('Type'),with=FALSE])
+DT.lda<- DT.lda %*% lda.fit$scaling
+DF.lda<-data.frame(DT.lda,DT.clean$Type)
+names(DF.lda)<-c( "LD1"     ,      "LD2"     ,      "LD3"     ,      "LD4"         ,  "Type")
+
+ggplot(data=DF.lda, aes(x=LD1,y=LD2,colour=as.factor(Type)))+geom_point()
+
+ggplot(data=DF.lda, aes(x=LD1,fill=as.factor(Type)))+geom_density(alpha=0.25) # Type 5 & 7
+ggplot(data=DF.lda, aes(x=LD2,fill=as.factor(Type)))+geom_density(alpha=0.25) # Type 5
+ggplot(data=DF.lda, aes(x=LD3,fill=as.factor(Type)))+geom_density(alpha=0.25) 
+ggplot(data=DF.lda, aes(x=LD4,fill=as.factor(Type)))+geom_density(alpha=0.25) # Type 3?
+
+ggplot(data=DF.lda, aes(x=LD1+LD2,y=LD3,colour=as.factor(Type)))+geom_point()
+ggplot(data=DF.lda, aes(x=LD1+LD2,fill=as.factor(Type)))+geom_density(alpha=0.25) # Type 7 
+```
+Type 5 & 7 Feature : LD1 may be able to be used to identity groups 5 & 7. Making the distributions more peaked (kurtosis) may help.
+Type 5 Feature: LD2 clearly separates Type 5.
+
+##PCA
+```{r pressure, echo=FALSE}
+PCA<-prcomp(x=DT.clean[,-c('Type'),with=FALSE])
+
+DT.pca<-as.matrix(DT.clean[,-c('Type'),with=FALSE])
+DT.pca<- DT.pca %*% PCA$rotation
+DF.pca<-data.frame(DT.pca,DT.clean$Type)
+
+ggplot(data=DF.pca, aes(x=PC1,fill=as.factor(DF.pca[,10])))+geom_density(alpha=0.25) # For Type 7 & 5
+ggplot(data=DF.pca, aes(x=PC2,fill=as.factor(DF.pca[,10])))+geom_density(alpha=0.25) # For Type 7
+ggplot(data=DF.pca, aes(x=PC3,fill=as.factor(DF.pca[,10])))+geom_density(alpha=0.25) 
+ggplot(data=DF.pca, aes(x=PC4,fill=as.factor(DF.pca[,10])))+geom_density(alpha=0.25)
+ggplot(data=DF.pca, aes(x=PC5,fill=as.factor(DF.pca[,10])))+geom_density(alpha=0.25)
+ggplot(data=DF.pca, aes(x=PC6,fill=as.factor(DF.pca[,10])))+geom_density(alpha=0.25)
+ggplot(data=DF.pca, aes(x=PC7,fill=as.factor(DF.pca[,10])))+geom_density(alpha=0.25) 
+ggplot(data=DF.pca, aes(x=PC8,fill=as.factor(DF.pca[,10])))+geom_density(alpha=0.25)
+ggplot(data=DF.pca, aes(x=PC9,fill=as.factor(DF.pca[,10])))+geom_density(alpha=0.25) # For Group 3
+
+```
+Type 7 Feature: PC1 Separates 5 & 7 from rest
+Type 7 Feature: PC2 Separates Type 7 from rest
+Type 5 Feature: PC3 Mildly Separates Type 5 from rest
+Type 3 Feature: PC9 Mildly Separates Type 3 from rest
+
+########Type 1,2,3
+```{r}
+DT123<-DT.clean[(Type=='1')|(Type=='2')|(Type=='3')]
+ggplot(data = DT123, aes(x=RI,fill=as.factor(Type)))+geom_density(alpha=0.25)
+ggplot(data = DT123, aes(x=Na,fill=as.factor(Type)))+geom_density(alpha=0.25)
+ggplot(data = DT123, aes(x=Mg,fill=as.factor(Type)))+geom_density(alpha=0.25) 
+ggplot(data = DT123, aes(x=Al,fill=as.factor(Type)))+geom_density(alpha=0.25) #Maybe 1 & 3
+ggplot(data = DT123, aes(x=Si,fill=as.factor(Type)))+geom_density(alpha=0.25)
+ggplot(data = DT123, aes(x=K,fill=as.factor(Type)))+geom_density(alpha=0.25)
+ggplot(data = DT123, aes(x=Ca,fill=as.factor(Type)))+geom_density(alpha=0.25)
+ggplot(data = DT123, aes(x=Ba,fill=as.factor(Type)))+geom_density(alpha=0.25) 
+ggplot(data = DT123, aes(x=Fe,fill=as.factor(Type)))+geom_density(alpha=0.25)
+
+```
