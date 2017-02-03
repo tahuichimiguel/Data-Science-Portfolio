@@ -18,6 +18,11 @@
   - **Goal:** Predict the manner in which the subject did the exercise. This is the "classe" variable in the training set. 
   - **Status:** R Analysis Complete. Python Analysis Ongoing.
 
+#### Glass Classification 
+  - Data analysis and machine learning modeling of 'Glass Classification' Kaggle dataset.
+   - **Language:** R
+  - **Goal:** Determine the type of class from the chemical composition
+  - **Status:** R Analysis Ongoing
 ***
 
 ##Graphical Analysis Case Studies
