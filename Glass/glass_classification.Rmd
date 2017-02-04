@@ -20,7 +20,7 @@ library(MASS)
 library(caret)
 library(glmnet)
 
-path <-'C:/Users/02laram26/Desktop/Kaggle/glass-classification'
+path <-'/Users/Mikey/Documents/Case-Studies/Glass'
 filename<-'glass.csv'
 setwd(path)
 DT<-fread(filename)
@@ -53,17 +53,30 @@ DT.clean[,.N,by=Type]
 ```
 
 ```{r}
-ggplot(data=DT.clean,aes(y=RI,x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1)
-ggplot(data=DT.clean,aes(y=Na,x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Group 7 has higher Na than other groups & is Normal (p=0.001)
-ggplot(data=DT.clean,aes(y=Mg,x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Groups 1,2,3 have much higher Mg than 5&7
-ggplot(data=DT.clean,aes(y=Al,x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Groups 5 & 7 have higher and distinct Al levels than other groups
+ggplot(data=DT.clean,aes(y=RI,x=as.factor(Type)))+
+  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1)
+
+ggplot(data=DT.clean,aes(y=Na,x=as.factor(Type)))+
+  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Group 7 has higher Na than other groups & is Normal (p=0.001)
+
+ggplot(data=DT.clean,aes(y=Mg,x=as.factor(Type)))+
+  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Groups 1,2,3 have much higher Mg than 5&7
+
+ggplot(data=DT.clean,aes(y=Al,x=as.factor(Type)))+
+  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Groups 5 & 7 have higher and distinct Al levels than other groups
 ggplot(data=DT.clean,aes(y=Si,x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1)
-ggplot(data=DT.clean,aes(y=K, x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Groups 7 skew higher for K than other groups
-ggplot(data=DT.clean,aes(y=Ca,x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1)  
+
+ggplot(data=DT.clean,aes(y=K, x=as.factor(Type)))+
+  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Groups 7 skew higher for K than other groups
+
+ggplot(data=DT.clean,aes(y=Ca,x=as.factor(Type)))+
+  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1)  
+
 ggplot(data=DT.clean,aes(y=Ba,x=as.factor(Type)))+
     geom_violin(draw_quantiles=c(0.25,0.75))+geom_jitter(width=.1) # For Group 5 & 7, 7 is somewhat normal (p=0.001) 
-ggplot(data=DT.clean,aes(y=Fe,x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Group 7 has lower Fe than other groups 
 
+ggplot(data=DT.clean,aes(y=Fe,x=as.factor(Type)))+
+  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Group 7 has lower Fe than other groups 
 
 ```
 
@@ -130,13 +143,14 @@ pca.2<-PCA$rotation[,2]
 
 sims<-matrix(nrow=10000,ncol=50)
     quant<-vector(mode='numeric',length=10000)
-    samps<- DT.clean[(Type!='7')]$Ba
+    samps.sin7<- DT.clean[(Type!='7')]$Ba
     for(i in 1:10000){
-        sims[i,]<-sample(samps, size=50,replace=TRUE)
+        sims[i,]<-sample(x=samps.sin7, size=50,replace=TRUE)
         quant[i]<-quantile(sims[i,],probs=0.95)
     }
-    F2_Thresh<-mean(quant)
-    DT.feat[,F2:=ifelse(Ba>=F2_Thresh,(Ba-F2_Thresh)^2,0)]
+    Ba.Thresh<-mean(quant)
+    Ba.type7.mean<-mean(DT.feat[Type=='7']$Ba)
+    DT.feat[,F2:=ifelse(Ba>Ba.Thresh,exp(3.25/(abs(Ba-Ba.type7.mean)^1.7+Ba.type7.mean)),Ba)]
   
 pca.3<-PCA$rotation[,3]
   DT.feat[,F3:=RI*pca.3[1] +Na*pca.3[2] +Mg*pca.3[3] +Al*pca.3[4] +Si*pca.3[5] +K*pca.3[6] +Ca*pca.3[7] +Ba*pca.3[8] +Fe*pca.3[9]]
@@ -162,7 +176,9 @@ sims<-matrix(nrow=10000,ncol=50)
     }
     F9_Thresh<-mean(quant)
     DT.feat[,F9:=ifelse(Mg>=F9_Thresh,(Mg-F9_Thresh)^2,0)]
-  
+
+DT.feat[,group:=ifelse(Type=='7','7',ifelse(Type=='5','5','123'))]
+      
 DT.feat[,RI:=NULL]
 DT.feat[,Na:=NULL]
 DT.feat[,Mg:=NULL]
@@ -172,56 +188,62 @@ DT.feat[,K:=NULL]
 DT.feat[,Ca:=NULL]
 DT.feat[,Ba:=NULL]
 DT.feat[,Fe:=NULL]
+
+ggplot(DT.feat,aes(x=F1,fill=Type))+geom_density(alpha=0.2)
+ggplot(DT.feat,aes(x=F2,fill=Type))+geom_density(alpha=0.2)
+ggplot(DT.feat,aes(x=F3,fill=Type))+geom_density(alpha=0.2)
+ggplot(DT.feat,aes(x=F4,fill=Type))+geom_density(alpha=0.2)
+ggplot(DT.feat,aes(x=F5,fill=Type))+geom_density(alpha=0.2)
+ggplot(DT.feat,aes(x=F7,fill=Type))+geom_density(alpha=0.2)
+ggplot(DT.feat,aes(x=F8,fill=Type))+geom_density(alpha=0.2)
+
+
 ```
 
 ##LDA w/ Engineered Features
 ```{r}
-lda.feat<-lda(Type~.,data = DT.feat)
+lda.feat<-lda(group~.,data = DT.feat[,-c('Type'),with=FALSE])
 lda.feat
 lda.feat$svd
 
-mat.lda.feat<-as.matrix(DT.feat[,-c('Type'),with=FALSE])
+mat.lda.feat<-as.matrix(DT.feat[,-c('group','Type'),with=FALSE])
 mat.lda.feat<- mat.lda.feat %*% lda.feat$scaling
-DF.lda.feat<-data.frame(mat.lda.feat,DT.clean$Type)
-names(DF.lda.feat)<-c('LD1','LD2','LD3','LD4','Type')
+DF.lda.feat<-data.frame(mat.lda.feat,DT.feat$group)
+names(DF.lda.feat)<-c('LD1','LD2','group')
 
-ggplot(data=DF.lda, aes(x=LD2,fill=as.factor(Type)))+geom_density(alpha=0.25) # Type 5 & 7
+ggplot(data=DF.lda.feat, aes(x=LD1,fill=as.factor(group)))+geom_density(alpha=0.25) 
+ggplot(data=DF.lda.feat, aes(x=LD2,fill=as.factor(group)))+geom_density(alpha=0.25) 
 
-ggplot(data=DF.lda.feat, aes(x=LD1,fill=as.factor(Type)))+geom_density(alpha=0.25) 
-ggplot(data=DF.lda.feat, aes(x=LD2,fill=as.factor(Type)))+geom_density(alpha=0.25) 
-ggplot(data=DF.lda.feat, aes(x=LD3,fill=as.factor(Type)))+geom_density(alpha=0.25)
-ggplot(data=DF.lda.feat, aes(x=LD4,fill=as.factor(Type)))+geom_density(alpha=0.25) 
+ggplot(data=DF.lda.feat, aes(x=LD1,y=LD2,colour=as.factor(group)))+geom_point()
 
 ```
+Can clearly distinguish between Types (123), 5, and 7
+
 
 ##PCA w/ Engineered Features
 ```{r}
-PCA.feat<-prcomp(x=DT.feat[,-c('Type'),with=FALSE])
+PCA.feat<-prcomp(x=DT.feat[,-c('group','Type'),with=FALSE])
 
-mat.pca.feat<-as.matrix(DT.feat[,-c('Type'),with=FALSE])
+mat.pca.feat<-as.matrix(DT.feat[,-c('group','Type'),with=FALSE])
 mat.pca.feat<- mat.pca.feat %*% PCA.feat$rotation
-DF.pca.feat<-data.frame(mat.pca.feat,DT.feat$Type)
+DF.pca.feat<-data.frame(mat.pca.feat,DT.feat$group)
 
 summary(PCA.feat)
 
-ggplot(data=DF.pca.feat, aes(x=PC1,fill=as.factor(DT.feat.Type)))+geom_density(alpha=0.25) 
-ggplot(data=DF.pca.feat, aes(x=PC2,fill=as.factor(DT.feat.Type)))+geom_density(alpha=0.25) 
-ggplot(data=DF.pca.feat, aes(x=PC3,fill=as.factor(DT.feat.Type)))+geom_density(alpha=0.25)
-ggplot(data=DF.pca.feat, aes(x=PC4,fill=as.factor(DT.feat.Type)))+geom_density(alpha=0.25) 
-ggplot(data=DF.pca.feat, aes(x=PC5,fill=as.factor(DT.feat.Type)))+geom_density(alpha=0.25) 
-ggplot(data=DF.pca.feat, aes(x=PC6,fill=as.factor(DT.feat.Type)))+geom_density(alpha=0.25) 
-ggplot(data=DF.pca.feat, aes(x=PC7,fill=as.factor(DT.feat.Type)))+geom_density(alpha=0.25) 
-ggplot(data=DF.pca.feat, aes(x=PC8,fill=as.factor(DT.feat.Type)))+geom_density(alpha=0.25) 
+ggplot(data=DF.pca.feat, aes(x=PC1,fill=as.factor(DT.feat.group)))+geom_density(alpha=0.25) 
+ggplot(data=DF.pca.feat, aes(x=PC2,fill=as.factor(DT.feat.group)))+geom_density(alpha=0.25) 
+ggplot(data=DF.pca.feat, aes(x=PC3,fill=as.factor(DT.feat.group)))+geom_density(alpha=0.25)
+ggplot(data=DF.pca.feat, aes(x=PC4,fill=as.factor(DT.feat.group)))+geom_density(alpha=0.25) 
+ggplot(data=DF.pca.feat, aes(x=PC5,fill=as.factor(DT.feat.group)))+geom_density(alpha=0.25) 
+ggplot(data=DF.pca.feat, aes(x=PC6,fill=as.factor(DT.feat.group)))+geom_density(alpha=0.25) 
+ggplot(data=DF.pca.feat, aes(x=PC7,fill=as.factor(DT.feat.group)))+geom_density(alpha=0.25) 
+ggplot(data=DF.pca.feat, aes(x=PC8,fill=as.factor(DT.feat.group)))+geom_density(alpha=0.25) 
  
-ggplot(data=DF.pca.feat, aes(x=PC1+PC3,y=PC2,colour=as.factor(DT.feat.Type)))+geom_point()
+ggplot(data=DF.pca.feat, aes(x=PC1,y=PC2,colour=as.factor(DT.feat.group)))+geom_point()
 
 ```
 
-PCA & LDA with engineered features can distinguish glass types 5 & 7 very well. Will have to use 2 Step Process:
-1) Identify if it is of type 5, 6, or 7
-2) If it is not type 5, 6, or 7...use a separate analysis for types 1, 2, and 3
-
-
+Can distinguish between Types (123),5,and 7 well with 1st 2 PC
 
 ########Type 1,2,3
 ```{r}
