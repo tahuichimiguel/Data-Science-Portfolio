@@ -18,9 +18,9 @@ library(ggplot2)
 library(e1071)
 library(MASS)
 library(caret)
-library(glmnet)
+library(gbm)
 
-path <-'/Users/Mikey/Documents/Case-Studies/Glass'
+path <-'/Users/Mikey/Documents/ML-Case-Studies/Glass'
 filename<-'glass.csv'
 setwd(path)
 DT<-fread(filename)
@@ -134,7 +134,7 @@ F7:Type 5 & 7 Feature: PC1 Separates 5 & 7 from rest {DONE}
 F8:Type 5 & 7 Feature :LD1 may be able to be used to identity groups 5 & 7. Making the distributions more peaked (kurtosis) may help. {DONE}
 F9:Type 5 & 7 Feature: Mean Mg of Combined Groups are Less than Mean Mg of Combined Groups 1,2,3  <Use Simulations to Determine Threshold>
 
-Feature Engineering for (1-2), 3, 5, & 7
+##Feature Engineering for (1-2), 3, 5, & 7
 ```{r}
 DT.feat<-data.table(DT.clean)
 
@@ -215,7 +215,6 @@ ggplot(data=DF.lda.feat, aes(x=LD1,fill=as.factor(group)))+geom_density(alpha=0.
 ggplot(data=DF.lda.feat, aes(x=LD2,fill=as.factor(group)))+geom_density(alpha=0.25) 
 
 ggplot(data=DF.lda.feat, aes(x=LD1,y=LD2,colour=as.factor(group)))+geom_point()
-
 ```
 Can clearly distinguish between Types (123), 5, and 7
 
@@ -242,12 +241,36 @@ ggplot(data=DF.pca.feat, aes(x=PC8,fill=as.factor(DT.feat.group)))+geom_density(
 ggplot(data=DF.pca.feat, aes(x=PC1,y=PC2,colour=as.factor(DT.feat.group)))+geom_point()
 
 ```
-
 Can distinguish between Types (123),5,and 7 well with 1st 2 PC
 
-########Type 1,2,3
+
+##Gradient Boosting for Types (123),5,and 7
 ```{r}
-DT123.clean<-DT.clean[(Type=='1')|(Type=='2')|(Type=='3')]
+DT.gbm<-data.table(DF.lda.feat,DF.pca.feat$PC1,DF.pca.feat$PC2)
+setnames(DT.gbm,old=names(DT.gbm),new=c('LD1','LD2','group','PC1','PC2'))
+
+# define training control
+train_controlA<- trainControl(method="LOOCV")
+train_controlB<- trainControl(method="cv", number=(5))
+
+# train the model 
+set.seed(123)
+gbm.fit<- train(group~., data=DT.gbm, trControl=train_controlB, method="gbm")
+
+gbm.fit
+plot(gbm.fit)
+summary(gbm.fit)
+confusionMatrix(predict(gbm.fit,DT.gbm),DT.gbm$group)
+
+```
+Can accurately distinguish between Type (123), 5, & 7 with CV Accuracy:0.9330499 & Concordance: 0.8038155 with 150 Trees of Depth 1
+
+
+## Type 1,2,3
+```{r}
+DT123.clean<-data.table(DT.clean[(Type=='1')|(Type=='2')|(Type=='3')])
+setattr(DT123.clean$Type,"levels",c('1','2','3'))
+
 ggplot(data = DT123.clean, aes(x=RI,fill=as.factor(Type)))+geom_density(alpha=0.25)
 ggplot(data = DT123.clean, aes(x=Na,fill=as.factor(Type)))+geom_density(alpha=0.25)
 ggplot(data = DT123.clean, aes(x=Mg,fill=as.factor(Type)))+geom_density(alpha=0.25) 
@@ -258,14 +281,18 @@ ggplot(data = DT123.clean, aes(x=Ca,fill=as.factor(Type)))+geom_density(alpha=0.
 ggplot(data = DT123.clean, aes(x=Ba,fill=as.factor(Type)))+geom_density(alpha=0.25) 
 ggplot(data = DT123.clean, aes(x=Fe,fill=as.factor(Type)))+geom_density(alpha=0.25)
 
-DT123.feat<-DT.feat[(Type=='1')|(Type=='2')|(Type=='3')]
-ggplot(data = DT123.feat, aes(x=F1,fill=as.factor(Type)))+geom_density(alpha=0.25)
-ggplot(data = DT123.feat, aes(x=F2,fill=as.factor(Type)))+geom_density(alpha=0.25)
-ggplot(data = DT123.feat, aes(x=F3,fill=as.factor(Type)))+geom_density(alpha=0.25)
-ggplot(data = DT123.feat, aes(x=F4,fill=as.factor(Type)))+geom_density(alpha=0.25)
-ggplot(data = DT123.feat, aes(x=F5,fill=as.factor(Type)))+geom_density(alpha=0.25)
-ggplot(data = DT123.feat, aes(x=F7,fill=as.factor(Type)))+geom_density(alpha=0.25)
-ggplot(data = DT123.feat, aes(x=F8,fill=as.factor(Type)))+geom_density(alpha=0.25)
+# define training control
+train_controlA<- trainControl(method="LOOCV")
+train_controlB<- trainControl(method="cv", number=(10))
 
+# train the model 
+set.seed(123)
+gbm.fit123<- train(Type~.-Ba, data=DT123.clean, trControl=train_controlA, method="gbm")
+
+gbm.fit123
+plot(gbm.fit123)
+summary(gbm.fit123)
+confusionMatrix(predict(gbm.fit123,DT123.clean),DT123.clean$Type)
 
 ```
+Use LOOCV since the in-class feature distributions have the similar means.
