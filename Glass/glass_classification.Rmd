@@ -9,12 +9,11 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Libraries & Data
-
 ```{r cars}
 options(warn = -1)
 library(data.table)
 library(ggplot2)
+library(gridExtra)
 library(e1071)
 library(MASS)
 library(caret)
@@ -26,18 +25,90 @@ setwd(path)
 DT<-fread(filename)
 ```
 
-#EDA & Cleaning
+#Exploratory Analysis & Modeling
+
+The data consists of 214 observations of 6 different types of glass. The number of observations in the dataset vary significantly across the glass types, which could pose a problem if ML techniques are used without data preprocessing. 
 ```{r}
 DT[,Type:=as.factor(Type)]
+print('Number of Occurrences for Each Glass Type')
+print(DT[,.N,by=Type])
+```
 
-summary(DT)
-print('# of Each Class')
-DT[,.N,by=Type]
+##Brute Force Gradient Boosting without Pre-Processing
 
+A stochastic gradient boosting model is fit to the raw data without pre-processing. The out-of-sample accuracy is estimated using leave-one-out cross-validation. 
+
+The final model consists of **150 trees** with **interaction depth of 2**. 
+The **accuracy** is **0.7850467**.
+The **concordance(kappa)** is **0.7028226**.
+
+```{r}
+DT.brute<-data.table(DT)
+DT.brute[,Type:=as.factor(as.character(Type))]
+
+train_controlA<- trainControl(method="LOOCV")
+
+set.seed(123)
+gbm.fit.brute1<- train(Type~., data=DT.brute, trControl=train_controlA, method="gbm")
+gbm.fit.brute1
+confusionMatrix(predict(gbm.fit.brute1,DT.brute),DT.brute$Type)
+remove(DT.brute)
+```
+
+
+**Discrimination Criterion** A unique characteristic of type 6 glass is that none of the recorded observations have any levels of potassium(K), iron(Fe), or barium(Ba). The absense of these three elements in the glass can be used to uniquely distinguish type 6 glass from the other 5 types. This helps with modeling because the glass type with the fewest occurrences can be omitted.
+```{r}
+print('Summary of Type 6 Glass(Tableware)')
+print(summary(DT[Type=='6']))
+
+#Cleaning
 #Processing: OMIT ANY Type 6 Glass (Minor Cross-Over with Groups 1[1],2[3],3[1])
 DT.omit6 <- DT[!((K==0)&(Fe==0)&(Ba==0))]
 DT.omit6[,.N,by=Type]
+```
 
+###Data Visualization
+```{r}
+g_RI<-ggplot(data=DT.omit6,aes(y=RI,x=as.factor(Type)))+xlab('Type')+
+  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1)
+
+g_Na<-ggplot(data=DT.omit6,aes(y=Na,x=as.factor(Type)))+xlab('Type')+
+  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Group 7 has higher Na than other groups & is Normal (p=0.001)
+
+g_Mg<-ggplot(data=DT.omit6,aes(y=Mg,x=as.factor(Type)))+xlab('Type')+
+  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Groups 1,2,3 have much higher Mg than 5&7
+
+g_Al<-ggplot(data=DT.omit6,aes(y=Al,x=as.factor(Type)))+xlab('Type')+
+  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Groups 5 & 7 have higher and distinct Al levels than other groups
+
+g_Si<-ggplot(data=DT.omit6,aes(y=Si,x=as.factor(Type)))+xlab('Type')+
+    geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1)
+
+g_Ca<-ggplot(data=DT.omit6,aes(y=Ca,x=as.factor(Type)))+xlab('Type')+
+  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1)  
+
+g_Fe<-ggplot(data=DT.omit6,aes(y=Fe,x=as.factor(Type)))+xlab('Type')+
+  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Group 7 has lower Fe than other groups 
+
+        grid.arrange(g_RI,g_Na,g_Mg,ncol=3,
+                     top='Elements without Clear, Discernable Outliers (1)')
+        grid.arrange(g_Al, g_Si,g_Ca,g_Fe,ncol=3,
+                     top='Elements without Clear, Discernable Outliers (2)')
+```
+
+
+```{r}
+g_Ba<-ggplot(data=DT.omit6,aes(y=Ba,x=as.factor(Type)))+xlab('Type')+
+    geom_violin(draw_quantiles=c(0.25,0.75))+geom_jitter(width=.1) # For Group 5 & 7, 7 is somewhat normal (p=0.001) 
+
+g_K<-ggplot(data=DT.omit6,aes(y=K, x=as.factor(Type)))+xlab('Type')+
+  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Groups 7 skew higher for K than other groups
+
+    grid.arrange(g_Ba,g_K,ncol=3, top='Elements with Clear, Discernable Outliers')
+```
+
+###Outliers
+```{r}
 #Remove Barium Outliers
 #(Ba>2)
 #(Type=='1')&(Ba>0.5)
@@ -52,51 +123,6 @@ DT.clean<-DT.omit6[!((Ba>2)|(Type=='1')&(Ba>0.5)|(K>thresh.type5.sd.K)&(Type==5)
 DT.clean[,.N,by=Type]
 ```
 
-```{r}
-ggplot(data=DT.clean,aes(y=RI,x=as.factor(Type)))+
-  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1)
-
-ggplot(data=DT.clean,aes(y=Na,x=as.factor(Type)))+
-  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Group 7 has higher Na than other groups & is Normal (p=0.001)
-
-ggplot(data=DT.clean,aes(y=Mg,x=as.factor(Type)))+
-  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Groups 1,2,3 have much higher Mg than 5&7
-
-ggplot(data=DT.clean,aes(y=Al,x=as.factor(Type)))+
-  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Groups 5 & 7 have higher and distinct Al levels than other groups
-ggplot(data=DT.clean,aes(y=Si,x=as.factor(Type)))+geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1)
-
-ggplot(data=DT.clean,aes(y=K, x=as.factor(Type)))+
-  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Groups 7 skew higher for K than other groups
-
-ggplot(data=DT.clean,aes(y=Ca,x=as.factor(Type)))+
-  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1)  
-
-ggplot(data=DT.clean,aes(y=Ba,x=as.factor(Type)))+
-    geom_violin(draw_quantiles=c(0.25,0.75))+geom_jitter(width=.1) # For Group 5 & 7, 7 is somewhat normal (p=0.001) 
-
-ggplot(data=DT.clean,aes(y=Fe,x=as.factor(Type)))+
-  geom_violin(draw_quantiles=c(0.25,0.75))+ geom_jitter(width=.1) # Group 7 has lower Fe than other groups 
-
-```
-
-##Brute Force GBM
-```{r}
-DT.clean[,Type:=as.factor(as.character(Type))]
-
-train_controlA<- trainControl(method="LOOCV")
-train_controlB<- trainControl(method="cv", number=(5))
-
-set.seed(123)
-gbm.fit.brute1<- train(Type~., data=DT.clean, trControl=train_controlA, method="gbm")
-gbm.fit.brute2<- train(Type~., data=DT.clean, trControl=train_controlB, method="gbm")
-
-#gbm.fit.brute1
-confusionMatrix(predict(gbm.fit.brute1,DT.clean),DT.clean$Type)
-
-#gbm.fit.brute2
-#confusionMatrix(predict(gbm.fit.brute2,DT.clean),DT.clean$Type)
-```
 
 ##LDA
 ```{r pressure, echo=FALSE}
