@@ -23,7 +23,6 @@
    - **Language:** R
   - **Goal:** Determine the type of class from the chemical composition
   - **Status:** Completed
-***
 
 ##Graphical Analysis Case Studies
 
