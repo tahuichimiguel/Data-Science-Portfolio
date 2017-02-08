@@ -22,7 +22,7 @@
   - Data analysis and machine learning modeling of 'Glass Classification' Kaggle dataset.
    - **Language:** R
   - **Goal:** Determine the type of class from the chemical composition
-  - **Status:** R Analysis Ongoing
+  - **Status:** Completed
 ***
 
 ##Graphical Analysis Case Studies
