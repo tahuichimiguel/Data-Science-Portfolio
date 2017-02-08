@@ -1,9 +1,9 @@
 ---
-title: "Glass"
+title: "LDA, PCA, & Boosting with Engineered Features"
 author: "Mikhail Lara"
-output: 
-    html_document:
-        code_folding: hide
+output:
+  html_document:
+    code_folding: hide
 ---
 
 ```{r setup, include=FALSE}
@@ -12,28 +12,26 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 options(warn = -1)
-library(data.table)
-library(ggplot2)
-library(gridExtra)
-library(e1071)
-library(MASS)
-library(caret)
-library(gbm)
+suppressMessages(library(data.table))
+suppressMessages(library(ggplot2))
+suppressMessages(library(gridExtra))
+suppressMessages(library(e1071))
+suppressMessages(library(MASS))
+suppressMessages(library(caret))
+suppressMessages(library(gbm))
 
-path <- 'C:/Users/02laram26/Desktop/Kaggle/glass-classification'
-setwd(path)
-filename<-'glass.csv'
+filename<-'C:/Users/02laram26/Desktop/Kaggle/glass-classification/glass.csv'
 DT<-fread(filename)
 ```
 
 The data consists of 214 observations of 6 different types of glass. The number of observations in the dataset vary significantly across the glass types, which could pose a problem if ML techniques are used without data preprocessing. 
 ```{r}
-DT[,Type:=as.factor(Type)]
+invisible(DT[,Type:=as.factor(Type)])
 print('Number of Occurrences for Each Glass Type')
 print(DT[,.N,by=Type])
 ```
 
-##Brute Force Stochastic Gradient Boosting without Pre-Processing
+###Brute Force Stochastic Gradient Boosting without Pre-Processing
 
 A stochastic gradient boosting model is fit to the raw data without pre-processing. The out-of-sample accuracy is estimated using leave-one-out cross-validation(CV). 
 
@@ -45,25 +43,31 @@ The CV **Concordance(kappa)** is **0.7028226**.
 
 ```{r}
 DT.brute<-data.table(DT)
-DT.brute[,Type:=as.factor(as.character(Type))]
+invisible(DT.brute[,Type:=as.factor(as.character(Type))])
 
 train_controlA<- trainControl(method="LOOCV")
 
 set.seed(123)
-gbm.fit.brute1<- train(Type~., data=DT.brute, trControl=train_controlA, method="gbm",verbose=FALSE)
+
+suppressMessages(gbm.fit.brute1<- train(Type~., data=DT.brute, trControl=train_controlA, method="gbm",verbose=FALSE))
+
 gbm.fit.brute1
 #confusionMatrix(predict(gbm.fit.brute1,DT.brute),DT.brute$Type)
 remove(DT.brute)
 ```
 ##Exploratory Analysis & Modeling
 
-**Discrimination Criterion** A unique characteristic of type 6 glass is that none of the recorded observations have any levels of potassium(K), iron(Fe), or barium(Ba). The absense of these three elements in the glass can be used to uniquely distinguish type 6 glass from the other 5 types. This helps with modeling because the glass type with the fewest occurrences can be omitted.
+**Discrimination Criterion:** A unique characteristic of type 6 glass is that none of the recorded observations have any levels of potassium(K), iron(Fe), or barium(Ba). The absense of these three elements in the glass can be used to uniquely distinguish type 6 glass from the other 5 types. This helps with modeling because the glass type with the fewest occurrences can be omitted.
 
-The **Accuracy** is **0.9766355**
-The **Sensitivity(recall)** is **1**
-The **True Negative Rate(TNR)** is **0.9756098**
-The **Positive Predictive Value(PPV)** is **0.6428571**
-The **Negative Predictive Value(NPV)** is **1**
+The **Accuracy** is **0.9766355**.
+
+The **Sensitivity(recall)** is **1**.
+
+The **True Negative Rate(TNR)** is **0.9756098**.
+
+The **Positive Predictive Value(PPV)** is **0.6428571**.
+
+The **Negative Predictive Value(NPV)** is **1**.
 
 
 ```{r }
@@ -77,10 +81,16 @@ recall<-9/nrow(DT[Type=='6'])
 TNR<-(nrow(DT)-nrow(DT[((K==0)&(Fe==0)&(Ba==0))]))/(nrow(DT[Type!='6'])) #specificity
 PPV<-nrow(DT[Type=='6'])/nrow(DT[((K==0)&(Fe==0)&(Ba==0))])
 NPV<-(nrow(DT)-nrow(DT[((K==0)&(Fe==0)&(Ba==0))]))   /   ((nrow(DT)-nrow(DT[((K==0)&(Fe==0)&(Ba==0))])))
+```
 
-print('Observations with Zero Potassium, Iron, and Barium')
+###Observations with Zero Potassium, Iron, and Barium
+```{r}
 DT[((K==0)&(Fe==0)&(Ba==0)),.N,by=Type]
 DT.omit6 <- DT[!((K==0)&(Fe==0)&(Ba==0))]
+```
+
+###Distribution of Remaining Glass Types Data
+```{r}
 DT.omit6[,.N,by=Type]
 ```
 
@@ -158,8 +168,10 @@ thresh.type5.sd.K<-type5.avg.K+2*sd(DT.omit6[Type=='5']$K)
 #(K>thresh.type5.sd.K)&(Type==5)
 
 DT.clean<-DT.omit6[!((Ba>2)|(Type=='1')&(Ba>0.5)|(K>thresh.type5.sd.K)&(Type==5) )]
+```
 
-print('Glass Type Distribution in Cleaned Data')
+###Glass Type Distribution with Outliers Removed
+```{r}
 DT.clean[,.N,by=Type]
 ```
 
@@ -181,10 +193,9 @@ glda3<-ggplot(data=DF.lda, aes(x=LD3,fill=as.factor(Type)))+geom_density(alpha=0
 glda4<-ggplot(data=DF.lda, aes(x=LD4,fill=as.factor(Type)))+geom_density(alpha=0.25) # Type 3?
 
 grid.arrange(glda1,glda2,glda3,glda4,ncol=2,top='Class Separation by Linear Discriminants')
-
 ```
 
-##PCA
+##Principle Component Analysis
 ```{r }
 PCA<-prcomp(x=DT.clean[,-c('Type'),with=FALSE])
 PCA
@@ -204,26 +215,27 @@ grid.arrange(gpc1,gpc2,gpc3,gpc9,ncol=2,top='Class Separation by Principle Compo
 ##Feature Engineering for (123), 5, & 7
 
 * F1
-    + Type 7 Feature: PC2 Separates Type 7 from rest 
+    + PC2 Separates Type 7 from Rest 
 * F2
-    + Type 7 Feature: Ba 25% Quantile, is higher that all other class maxima [Higher Ba ~ Higher Prob(Type 7)] 
-    + Can use Non-Parametric Bootstrap Simulations to Determine quantile Threshold
+    + Ba 25% Quantile, is higher that all other class maxima [Higher Ba ~ Higher Prob(Type 7)] 
+    + Can use Non-Parametric Bootstrap Simulations to Determine Quantile Threshold
 * F3
-    + Type 5 Feature: PC3 Mildly Separates Type 5 from rest 
+    + PC3 Mildly Separates Type 5 from Rest 
 * F4
-    + Type 5 Feature: LD2 clearly separates Type 5
+    + LD2 clearly separates Type 5
 * F5
-    + Type 3 Feature: PC9 Mildly Separates Type 3 from rest
+    + PC9 Mildly Separates Type 3 from Rest
 * F6
-    + Type 6 Feature: Has Zero Potassium, Barium, or Iron (Unique Characteristic for that type of glass)
+    + Has Zero Potassium, Barium, or Iron (Unique Characteristic for that type of glass)
 * F7
-    + Type 5 & 7 Feature: PC1 Separates 5 & 7 from rest
+    + PC1 Separates 5 & 7 from Rest
 * F8
-    + Type 5 & 7 Feature :LD1 may be able to be used to identity groups 5 & 7 
-    + Making the distributions more peaked (kurtosis) may help
+    + LD1 May Be Used To Identity Groups 5 & 7 
+    + Making the Distributions More Peaked (kurtosis) May Help
 * F9
-    + Type 5 & 7 Feature: Mean Mg of Combined Groups are Less than Mean Mg of Combined Groups 1,2,3 
-    + Use Simulations to Determine Threshold with Non-Parametric Bootstrap Simulations
+    + Mean Mg of Combined Groups are Less than Mean Mg of Combined Groups 1,2,3 
+    + Use Non-Parametric Bootstrap Simulations to Determine Threshold 
+
 ```{r }
 DT.feat<-data.table(DT.clean)
 
@@ -300,15 +312,14 @@ grid.arrange(g11,g12,ncol=2)
 ggplot(data=DF.lda.feat, aes(x=LD1,y=LD2,colour=as.factor(group)))+geom_point()+ggtitle('Separation by Engineered Linear Discriminants')
 ```
 
-##PCA with Engineered Features
+##Principle Component Analysis with Engineered Features
 ```{r}
 PCA.feat<-prcomp(x=DT.feat[,-c('group','Type'),with=FALSE])
+summary(PCA.feat)
 
 mat.pca.feat<-as.matrix(DT.feat[,-c('group','Type'),with=FALSE])
 mat.pca.feat<- mat.pca.feat %*% PCA.feat$rotation
 DF.pca.feat<-data.frame(mat.pca.feat,DT.feat$group)
-
-summary(PCA.feat)
 
 g21<-ggplot(data=DF.pca.feat, aes(x=PC1,fill=as.factor(DT.feat.group)))+geom_density(alpha=0.25) 
 g22<-ggplot(data=DF.pca.feat, aes(x=PC2,fill=as.factor(DT.feat.group)))+geom_density(alpha=0.25) 
@@ -348,7 +359,6 @@ plot(gbm.fit)
 
 ```
 
-
 ## Gradient Boosting for Types 1, 2, & 3
 
 * A second stochastic gradient boosting model can be built to classify the glass as:
@@ -379,21 +389,21 @@ plot(gbm.fit123)
 #Summary
 
 * Brute Force Gradient Boosting (Control)
-+ CV **Accuracy** is **0.7850467**.
-+ CV **Concordance(kappa)** is **0.7028226**.
+    + CV **Accuracy** is **0.7850467**.
+    + CV **Concordance(kappa)** is **0.7028226**.
 
 * Omit 6
-+ **Accuracy** is **0.9766355**
-    + **Sensitivity(recall)** is **1**
-    + **True Negative Rate(TNR)** is **0.9756098**
-    + **Positive predictive value(PPV)** is **0.6428571**
-    + **Negative predictive value(NPV)** is **1**
+    + **Accuracy** is **0.9766355**.
+    + **Sensitivity(recall)** is **1**.
+    + **True Negative Rate(TNR)** is **0.9756098**.
+    + **Positive predictive value(PPV)** is **0.6428571**.
+    + **Negative predictive value(NPV)** is **1**.
     
-    * Gradient Boosting for Types (123), 5, & 7
-+ CV **Accuracy** is **0.9330499**.
-+ CV **Concordance(kappa)** is **0.8038155**.
+* Gradient Boosting for Types (123), 5, & 7
+    + CV **Accuracy** is **0.9330499**.
+    + CV **Concordance(kappa)** is **0.8038155**.
 
 * Gradient Boosting for Types 1,2, and 3
-+ CV **Accuracy** is **0.8141026*.
-+ CV **Concordance(kappa)** is **0.6771339**.
+    + CV **Accuracy** is **0.8141026**.
+    + CV **Concordance(kappa)** is **0.6771339**.
 
