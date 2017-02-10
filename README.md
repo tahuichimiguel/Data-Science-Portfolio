@@ -24,6 +24,13 @@
   - **Goal:** Determine the type of class from the chemical composition
   - **Status:** Completed
 
+#### Credit Card Fraud Detection
+  - Data analysis and modeling of 'Credit Card Fraud Detection' Kaggle dataset.
+  - **Language:** R
+  - **Goal:** Model the Probability of a Credit Card Transaction being Fraudulent
+  - **Status:** In Progress
+
+
 ##Graphical Analysis Case Studies
 
 #### US Police Shooting Study: Graphical Analysis & Predictor Interactions
