@@ -20,7 +20,7 @@
 
 #### Glass Classification 
   - Data analysis and machine learning modeling of 'Glass Classification' Kaggle dataset.
-   - **Language:** R
+  - **Language:** R
   - **Goal:** Determine the type of class from the chemical composition
   - **Status:** Completed
 
