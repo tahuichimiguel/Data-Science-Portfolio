@@ -1,0 +1,101 @@
+---
+title: "PCA & Regularized Regression for Fraud Detection"
+author: "Mikhail Lara"
+date: "2/17/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+suppressMessages( library(data.table))
+suppressMessages( library(ggplot2))
+suppressMessages(library(glmnet))
+suppressMessages(library(caret))
+suppressMessages(library(corrplot))
+suppressMessages(library(GGally))
+
+path <- '/Users/Mikey/Documents/Case-Studies/Credit Card Fraud Detection'
+setwd(path)
+DT<- fread('creditcard.csv',sep = ',', colClasses = rep('numeric',31))
+```
+
+#Checking & Cleaning
+```{r}
+invisible(DT[,Class:= as.numeric(Class)])
+summary(DT)
+
+#How Many Ocurrences of Each Class
+DT[,.N, by = Class]
+
+#Linear Correlation of Fraud with Predictors
+M<-cor(DT)
+tbl<-data.table(correlation = M[31,sort.list(abs(M[31,1:30]),decreasing = TRUE)],
+                varname=names(DT)[sort.list(abs(M[31,1:30]),decreasing = TRUE)])
+tbl
+
+#invisible(DT[,Class:= ifelse(Class==1,'Fraud','Legitimate')])
+
+```
+
+##EDA
+```{r}
+ggplot(data = DT, aes(x = V17,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+ggplot(data = DT, aes(x = V14,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+ggplot(data = DT, aes(x = V12,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+ggplot(data = DT, aes(x = V10,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+ggplot(data = DT, aes(x = V16,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+ggplot(data = DT, aes(x = V3,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+ggplot(data = DT, aes(x = V7,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+ggplot(data = DT, aes(x = V11,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+ggplot(data = DT, aes(x = V4,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+ggplot(data = DT, aes(x = V18,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+ggplot(data = DT, aes(x = V1,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+
+```
+#Create Data Partition (Train,Test)
+```{r}
+set.seed(1234)
+inTrain<-createDataPartition(DT$Class, p = 0.85,list=FALSE)
+
+train <-DT[inTrain]  #419 Total Occurrences of Fraud
+  train.sub<-createDataPartition(train$Class,p=0.7,times=10,list = FALSE)
+
+test  <-DT[-inTrain] #73 Occurrences of Fraud
+
+```
+
+#Logistic Regression
+```{r}
+
+logit.models<-list(glm(Class~V17+V14+V12+V10+V16+V3+V7+V11+ V4+ V18+ V1,
+                          data = train[train.sub[,1]],family = 'binomial')
+              )
+
+for(i in 2:10){
+        logit.models[[i]]<- glm(Class~V17+V14+V12+V10+V16+V3+V7+V11+ V4+ V18+ V1 ,
+                              data = train[train.sub[,i]],family = 'binomial')
+}
+
+for(i in 1:10){
+ print(t(which(coef(summary(logit.models[[i]]))[,4]<.05)))
+}
+
+# pred.logit1<-predict(fit.logit1,train[-train.sub[,1]])
+#   expit1<- exp(pred.logit1)/(1+exp(pred.logit1))
+# 
+#   plot(x=c(1:length(pred.logit1)),y=expit1,
+#         col=as.factor(train[-train.sub[,1]]$Class),
+#           ylim = c(0,.05))
+
+glm(data= train,Class~V14+V10+V4+V3,family = 'binomial')
+```
+
+#Elastic Net
+```{r}
+elnet.traincontrol<- trainControl()
+elnet.fit<- train(data = train, Class~., method = glmnet, family = 'binomial')
+```
+
