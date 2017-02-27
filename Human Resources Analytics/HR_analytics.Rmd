@@ -1,7 +1,9 @@
 ---
 title: "Identification of Employee Resignation Predictors"
 author: "Mikhail Lara"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -20,7 +22,7 @@ library(caret)
 library(vcd)
 library(corrplot)
 
-setwd('C:/Users/02laram26/Desktop/Kaggle/human-resources-analytics')
+setwd('/Users/Mikey/Documents/ML-Case-Studies/Human Resources Analytics')
 file_name<-'HR_comma_sep.csv'
 
 hr<-read.csv(file_name)
@@ -110,6 +112,7 @@ s.sales
 
 ###Employee Satisfaction Level: Cluster 1
 * The mean departmental satisfaction levels in Cluster 1 are skewed because of the accounting department with a value of 0.116. Hypothesis testing indicates that it's satisfaction level is significantly greater than other departments, implying that the unhappiest employees who resigned in accounting enjoyed their jobs more than unhappiest employees who resigned in other departments. 
+
 ```{r,echo=FALSE}
 
 temp<-hr_dat[left==TRUE & satisfaction_level<0.25,satisfaction_level,by=sales]
@@ -179,6 +182,7 @@ names(temp)<-c('sales','mean.satisfaction')
 
 * ANOVA on 'satisfaction level', excluding left, indicates a statistically significant dependence all fields except 'average monthly hours' (p<.05). 
     + Consider omitting average monthly hours from ML model for left since it is poorly correlated with 'left' and isn't a significant predictor of satisfaction.
+    
 ```{r}
 summary(aov(data=hr_dat,satisfaction_level~.-left))
 ```
@@ -210,6 +214,7 @@ mosaicplot(data=hr_dat,Work_accident~left,color=c(3,2),main= 'Dependence of Resi
 
 #Random Forest Classification & Variable Importance
 * The human resources data was split into training and validation data sets. The training data used to develop the random forest was comprised 75% of the original data set.
+
 ```{r}
     set.seed(7)
     inTrain = createDataPartition(hr_dat$left,p=3/4,list=FALSE)
@@ -283,6 +288,7 @@ mosaicplot(data=hr_dat,Work_accident~left,color=c(3,2),main= 'Dependence of Resi
         + Time Spent with Company (81)
         + Number of Projects (773.7)
         + Average Monthly Hours (726.2)
+        
 ```{r,echo=FALSE}
     set.seed(seed)
     mtry <- sqrt(4)

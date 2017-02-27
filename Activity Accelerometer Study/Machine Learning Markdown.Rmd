@@ -1,13 +1,15 @@
 ---
 title: "Mikhail Lara - Practical Machine Learning Course Project"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-- Loading Data
+##Loading Data
 
 The raw training data and test data were loaded into the R workspace. However inspection of the top 6 rows of the training data revealed that a significant portion of the columns were blank or 'NA'.  A trimmed version of the training data named "clean _ training"" that only included the 'classe' value and the  accelerometer data was created. Trimming the data this way resulted in the number of possible predictors being reduced to 52 from the original 159. The same trimming operation was performed to make a corresponding 'clean _ testing' data set.
 
@@ -32,7 +34,7 @@ library(mgcv)
 library(nlme)
 
 #Getting Data
-  setwd('/Users/Mikey/Desktop')
+  setwd('/Users/Mikey/Documents/ML-Case-Studies/Activity Accelerometer Study')
   list.files()
   training<-read.csv('pml-training.csv',header = TRUE)
   testing<-read.csv('pml-testing.csv',header = TRUE)
@@ -70,9 +72,9 @@ library(nlme)
   clean_testing<- testing[,indx]
 ```
 
-- Exploratory Analysis & Cleaning Data
+##Exploratory Analysis & Cleaning Data
 
-A simple exploratory analysis was performed to identify any outliers in the predictors. This is crucial because extreme outliers can have a deleterious effect on the performance of the iterative machine learning methods, such as random forest and boosting. The exploratory analysis procedure consisted of looking at scatterplots of each of the predictors and taking note if there were any accelerometer measurements that lay more than 5 standard deviations away from the mean. Two observations, located at rows 5373 & 9274 in 'clean _ train' were classified as outliers using this criterion and were removed from the 'clean _ training' data set. The issues with row 5373 was that the gyroscope data for the accelerometers on the dumbbell and the forearm reported values with magnitudes in the hundreds when the remaining data was less than 20. A similar observation was made for row 9274 in the 'magnet _ dumbbell _ y' predictor. Plots of these observations are included.
+A simple exploratory analysis was performed to identify any outliers in the predictors. This is crucial because extreme outliers can have a deleterious effect on the performance of the iterative machine learning methods, such as random forest and boosting. The exploratory analysis procedure consisted of looking at scatterplots of each of the predictors and taking note if there were any accelerometer measurements that lay more than 5 standard deviations away from the mean. Two observations, located at rows 5373 & 9274 in 'clean_ train' were classified as outliers using this criterion and were removed from the 'clean_training' data set. The issues with row 5373 was that the gyroscope data for the accelerometers on the dumbbell and the forearm reported values with magnitudes in the hundreds when the remaining data was less than 20. A similar observation was made for row 9274 in the 'magnet_dumbbell_y' predictor. Plots of these observations are included.
 
 Before proceeding to modeling, two more investigatory tests were performed to identify both significant correlation between predictors and predictors with statistically insignificant variance. To evaluate high correlation, correlation matrices were calculated for the data from each accelerometer. The results did not indicate any meaningful correlations that would merit eliminating any predictors. Statistically significant variance was calculated using the 'nearZeroVar' function on the entire 'clean _ training' data set. That analysis concluded that no predictors could be justifiably omitted from modeling on the basis of near zero variance.
 
@@ -121,9 +123,9 @@ Before proceeding to modeling, two more investigatory tests were performed to id
   
 - Modeling Data & Cross-Validation
   
-Training & validation datasets were created from the trimmed 'clean _ training' data set using the standard createDataPartition function in caret. The training set consisted of 75% of the observations in the 'clean _ training' data using the 'classe' data as the outputs. The validation set was created for model cross-validation to provide an estimate of out-of-sample accuracy.
+Training & validation datasets were created from the trimmed 'clean_training' data set using the standard createDataPartition function in caret. The training set consisted of 75% of the observations in the 'clean_training' data using the 'classe' data as the outputs. The validation set was created for model cross-validation to provide an estimate of out-of-sample accuracy.
 
-Modeling the data was performed by successfully fitting 4 different prediction methods to the training data 'clean _ train _ dat'. The specific methods used were 1) recursive partitioning/regression tree, 2)linear discriminant analysis, 3)support vector machine, and 4) random forest. Boosting & Naive Bayes methods were also attempted but were abandoned because the analysis took too long, making it impractical for optimization/tuning. It is worth noting that the random forest 'mtry' value had to be set to 10 to make it produce a model in a reasonable amount of time.
+Modeling the data was performed by successfully fitting 4 different prediction methods to the training data 'clean_train_dat'. The specific methods used were 1) recursive partitioning/regression tree, 2)linear discriminant analysis, 3)support vector machine, and 4) random forest. Boosting & Naive Bayes methods were also attempted but were abandoned because the analysis took too long, making it impractical for optimization/tuning. It is worth noting that the random forest 'mtry' value had to be set to 10 to make it produce a model in a reasonable amount of time.
   
 ```{r results="hide"}  
 #Modeling - Create Training/Validation Data Sets & Test Different Prediction Models
@@ -176,7 +178,7 @@ Modeling the data was performed by successfully fitting 4 different prediction m
 
 - Final Model Selection
 
-The accuracies for each of the 4 resulting models were evaluated by simply predicting on both the 'clean _ train _ dat' and 'validate' data sets and looking at the resulting confusion matrix. This procedure resulted in one in-sample accuracy measurement and one estimate of out-of-sample accuracy. These pairs of accuracy values were virtually identical for each model. The top two models of these 4 were the random forest and support vector machine models. The in-sample accuracy and estimated out-of-sample accuracy for the random forest model were 100% & 99.56% respectively. The in-sample accuracy and estimated out-of-sample accuracy for the support vector machine model were 95.86% & 95.25% respectively. 
+The accuracies for each of the 4 resulting models were evaluated by simply predicting on both the 'clean_train_dat' and 'validate' data sets and looking at the resulting confusion matrix. This procedure resulted in one in-sample accuracy measurement and one estimate of out-of-sample accuracy. These pairs of accuracy values were virtually identical for each model. The top two models of these 4 were the random forest and support vector machine models. The in-sample accuracy and estimated out-of-sample accuracy for the random forest model were 100% & 99.56% respectively. The in-sample accuracy and estimated out-of-sample accuracy for the support vector machine model were 95.86% & 95.25% respectively. 
 
 A comparison of the training set predictions of the top 2 models demonstrates that the values they agree upon are 100% accurate. With regards to the validation set, the agreed predictions of the top 2 models are 99.6% accurate. That is the values they mutually predict fail to accurately predict 1 out of 4681 observations. This degree of accuracy suggests that although the random forest method has a higher in-sample accuracy, the 2 models have nearly identical predictive power. 
 
@@ -203,7 +205,7 @@ confusionMatrix(svm_test,forest_test)
 
 ```
 
-- PLOTS
+##PLOTS
 
 1) Dumbbell Outliers corresponding to row 5373
 2) Forearm Outliers corresponding to row 5373

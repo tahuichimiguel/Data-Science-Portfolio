@@ -2,6 +2,7 @@
 title: "LDA, PCA, & Boosting with Engineered Features"
 author: "Mikhail Lara"
 output:
+  pdf_document: default
   html_document:
     code_folding: hide
 ---
@@ -20,11 +21,12 @@ suppressMessages(library(MASS))
 suppressMessages(library(caret))
 suppressMessages(library(gbm))
 
-filename<-'C:/Users/02laram26/Desktop/Kaggle/glass-classification/glass.csv'
+filename<-'/Users/Mikey/Documents/ML-Case-Studies/Glass/glass.csv'
 DT<-fread(filename)
 ```
 
 The data consists of 214 observations of 6 different types of glass. The number of observations in the dataset vary significantly across the glass types, which could pose a problem if ML techniques are used without data preprocessing. 
+
 ```{r}
 invisible(DT[,Type:=as.factor(Type)])
 print('Number of Occurrences for Each Glass Type')
@@ -138,7 +140,6 @@ grid.arrange(g_RI,g_Na,g_Mg,ncol=3,
 grid.arrange(g_Al, g_Si,g_Ca,g_Fe,ncol=3,
              top='Elements without Clear, Discernable Outliers (2)')
 ```
-
 
 The glass attributes that have 'clear, discernable' outliers according to the quantile criterion are Ba and K. A total of **6 outliers** are removed based on this criterion.
 

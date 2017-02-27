@@ -1,7 +1,6 @@
 ---
-title: "PCA & Regularized Regression for Fraud Detection"
+title: "Fraud Detection: Logit Regression, AdaBoost, & SVM"
 author: "Mikhail Lara"
-date: "2/17/2017"
 output: html_document
 ---
 
@@ -10,14 +9,18 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-suppressMessages( library(data.table))
-suppressMessages( library(ggplot2))
+suppressMessages(library(data.table))
+suppressMessages(library(ggplot2))
 suppressMessages(library(glmnet))
 suppressMessages(library(caret))
 suppressMessages(library(corrplot))
 suppressMessages(library(GGally))
+suppressMessages(library(kernlab))
+suppressMessages(library(gbm))
+suppressMessages(library(ada))
+suppressMessages(library(plyr))
 
-path <- '/Users/Mikey/Documents/Case-Studies/Credit Card Fraud Detection'
+path <- '/Users/Mikey/Documents/ML-Case-Studies/Credit Card Fraud Detection'
 setwd(path)
 DT<- fread('creditcard.csv',sep = ',', colClasses = rep('numeric',31))
 ```
@@ -35,9 +38,6 @@ M<-cor(DT)
 tbl<-data.table(correlation = M[31,sort.list(abs(M[31,1:30]),decreasing = TRUE)],
                 varname=names(DT)[sort.list(abs(M[31,1:30]),decreasing = TRUE)])
 tbl
-
-#invisible(DT[,Class:= ifelse(Class==1,'Fraud','Legitimate')])
-
 ```
 
 ##EDA
@@ -53,23 +53,21 @@ ggplot(data = DT, aes(x = V11,fill = as.factor(Class)))+geom_density(alpha = 0.2
 ggplot(data = DT, aes(x = V4,fill = as.factor(Class)))+geom_density(alpha = 0.25)
 ggplot(data = DT, aes(x = V18,fill = as.factor(Class)))+geom_density(alpha = 0.25)
 ggplot(data = DT, aes(x = V1,fill = as.factor(Class)))+geom_density(alpha = 0.25)
-
 ```
+
 #Create Data Partition (Train,Test)
 ```{r}
 set.seed(1234)
-inTrain<-createDataPartition(DT$Class, p = 0.85,list=FALSE)
+inTrain<-createDataPartition(DT$Class, p = 0.6,list=FALSE)
 
 train <-DT[inTrain]  #419 Total Occurrences of Fraud
   train.sub<-createDataPartition(train$Class,p=0.7,times=10,list = FALSE)
 
 test  <-DT[-inTrain] #73 Occurrences of Fraud
-
 ```
 
-#Logistic Regression
+#Traditional Logistic Regression
 ```{r}
-
 logit.models<-list(glm(Class~V17+V14+V12+V10+V16+V3+V7+V11+ V4+ V18+ V1,
                           data = train[train.sub[,1]],family = 'binomial')
               )
@@ -80,22 +78,235 @@ for(i in 2:10){
 }
 
 for(i in 1:10){
- print(t(which(coef(summary(logit.models[[i]]))[,4]<.05)))
+ print(t(which(coef(summary(logit.models[[i]]))[,4]<.01)))
 }
 
-# pred.logit1<-predict(fit.logit1,train[-train.sub[,1]])
-#   expit1<- exp(pred.logit1)/(1+exp(pred.logit1))
-# 
-#   plot(x=c(1:length(pred.logit1)),y=expit1,
-#         col=as.factor(train[-train.sub[,1]]$Class),
-#           ylim = c(0,.05))
+logistic.final<-glm(data= train,as.factor(Class)~V14+V10+V16+V3+V4,family = 'binomial')
+summary(logistic.final)
 
-glm(data= train,Class~V14+V10+V4+V3,family = 'binomial')
+#setwd()
+#saveRDS(logistic.final,file='logistic_final.rds')
+
+#pval<-format(1-pchisq(6128.1-2008.1,df=(242085-242080)),nsmall=2)
+#print(paste0(c('P-value that Logit Model Differs from Constant Logit Model is ',pval),collapse = ''))
+
+#In-Sample Prediction
+pred.logit<-predict.glm(logistic.final,newdata=train)
+pred.expit<- exp(pred.logit)/(1+exp(pred.logit))
+
+a<-which(train$Class==1)
+b<-which(train$Class==0)
+
+TP<-length(which(pred.expit[a]>0.5))
+FP<-length(which(pred.expit[a]<=0.5))
+TN<-length(which(pred.expit[b]<0.5))
+FN<-length(which(pred.expit[b]>0.5))
+Recall<-TP/(TP+FN)
+TNR<-TN/(TN+FP)
+PPV<-TP/(TP+FP)
+NPV<-TN/(TN+FN)
+
+#Out of Sample Prediction
+pred.logit.test<-predict.glm(logistic.final,newdata=test)
+pred.expit.test<- exp(pred.logit.test)/(1+exp(pred.logit.test))
+
+a<-which(test$Class==1)
+b<-which(test$Class==0)
+
+TP.test<-length(which(pred.expit.test[a]>0.5))
+FP.test<-length(which(pred.expit.test[a]<=0.5))
+TN.test<-length(which(pred.expit.test[b]<0.5))
+FN.test<-length(which(pred.expit.test[b]>0.5))
+Recall.test<-TP.test/(TP.test+FN.test)
+TNR.test<-TN.test/(TN.test+FP.test)
+PPV.test<-TP.test/(TP.test+FP.test)
+NPV.test<-TN.test/(TN.test+FN.test)
+
+##Summary
+logit.DT<-data.table(test_set=c('train','test'),
+                     recall = c(Recall,Recall.test),
+                     negative.rate=c(TNR,TNR.test),
+                     pos.pred.value=c(PPV,PPV.test),
+                     neg.pred.value=c(NPV,NPV.test))
+
+logit.DT
+
 ```
 
-#Elastic Net
+#Adaboost: Cross-Validation 
 ```{r}
-elnet.traincontrol<- trainControl()
-elnet.fit<- train(data = train, Class~., method = glmnet, family = 'binomial')
+nonfraud<-which(train$Class==0)
+fraud<-which(train$Class==1)
+
+#Use nonfraud-to-fraud ratio of 4:1 
+set.seed(1234)
+
+ada.data<-list(train[c(sample(fraud,length(fraud)*(.75)),sample(nonfraud,length(fraud)*4*(.75)))])
+    
+    ada.fit<-list(train(data = ada.data[[1]], Class~.-Time,method='ada',verbose=FALSE))
+    print(paste0(c('Adaboost Model: 1'),collapse = ''))
+    ada.fit[[1]]
+
+    for(i in 2:5){
+        ada.data[[i]]<-train[c(sample(fraud,length(fraud)*(2/3)),sample(nonfraud,length(fraud)*4*2/3))]
+        ada.fit[[i]]<-train(data = ada.data[[i]], Class~.-Time,method='ada',verbose=FALSE)
+        print(paste0(c('Adaboost Model: ',i),collapse = ''))
+        ada.fit[[i]]
+    }
+
+    # setwd()
+    # saveRDS(ada.fit[[1]], file="ada1.rds")
+    # saveRDS(ada.fit[[2]], file="ada2.rds")
+    # saveRDS(ada.fit[[3]], file="ada3.rds")
+    # saveRDS(ada.fit[[4]], file="ada4.rds")
+    # saveRDS(ada.fit[[5]], file="ada5.rds")
+    
+    #  setwd()
+    # ada.fit<-list(readRDS("ada1.rds"))
+    # ada.fit[[2]] <- readRDS("ada2.rds")
+    # ada.fit[[3]]<- readRDS("ada3.rds")
+    # ada.fit[[4]]<- readRDS("ada4.rds")
+    # ada.fit[[5]]<- readRDS("ada5.rds")
+
+
+#Calculate Recall for All Adaboost Models on Entire Training Set
+ada.recall=c()
+ada.specificity=c()
+for(i in 1:5){
+    ada.recall[i]<-sensitivity(predict(ada.fit[[i]],newdata =train),as.factor(train$Class),positive='1')
+    ada.specificity[[i]]<-sensitivity(predict(ada.fit[[i]],newdata =train),as.factor(train$Class),positive='0')
+}
+data.table(Model=c(1:5),recall=ada.recall,spec=ada.specificity)
+
+#Final AdaBoost Model Training - Voting
+    v1<-predict(ada.fit[[1]],newdata=train)
+    v2<-predict(ada.fit[[2]],newdata=train)
+    v3<-predict(ada.fit[[3]],newdata=train)
+    v4<-predict(ada.fit[[4]],newdata=train)
+    v5<-predict(ada.fit[[5]],newdata=train)
+    v.agg<-as.numeric(v1)+as.numeric(v2)+as.numeric(v3)+as.numeric(v4)+as.numeric(v5)-5
+    
+    final.ada<-data.table(v.agg, truth=as.factor(train$Class))
+    
+    sens<-c()
+    spec<-c()
+    for(i in 1:5){
+        final.ada[,prediction:=as.factor(ifelse(v.agg>i,'1','0'))]
+        sens[i]<-sensitivity(final.ada$prediction,final.ada$truth,positive='1')
+        spec[i]<-sensitivity(final.ada$prediction,final.ada$truth,positive='0')
+    }
+    
+    ggplot(data.table(num.votes=c(1:5),sens=sens),aes(x=num.votes,y=sens))+
+        geom_line(colour='red')+geom_point(colour='red')+ylim(0,1)+
+        xlab('Number of Positive Votes')+ylab('Sensitivity')+
+        ggtitle('Effect of Model Voting on Fraud Sensitivity (In-Sample Estimate)')
+
+#Final AdaBoost Model (Test Set)
+    v1<-predict(ada.fit[[1]],newdata=test)
+    v2<-predict(ada.fit[[2]],newdata=test)
+    v3<-predict(ada.fit[[3]],newdata=test)
+    v4<-predict(ada.fit[[4]],newdata=test)
+    v5<-predict(ada.fit[[5]],newdata=test)
+    v.agg<-as.numeric(v1)+as.numeric(v2)+as.numeric(v3)+as.numeric(v4)+as.numeric(v5)-5
+    
+    final.ada.test<-data.table(v.agg, truth=as.factor(test$Class))
+    
+    final.ada.test[,prediction:=as.factor(ifelse(v.agg>1,'1','0'))]
+    sens<-sensitivity(final.ada.test$prediction,final.ada.test$truth,positive='1')
+    spec<-sensitivity(final.ada.test$prediction,final.ada.test$truth,positive='0')
+    
+    sens
+    spec
 ```
+
+#Support Vector Machine Tune Grid
+```{r}
+#Create smaller subset to manage runtime
+nonfraud<-which(train$Class==0)
+fraud<-which(train$Class==1)
+
+#Use nonfraud-to-fraud ratio of 4:1 
+ctrl<-trainControl(method='cv',number=3)
+tgrid = expand.grid(    sigma = c(.01, .5, 5),
+                        C = c(0.75, 0.9, 1, 1.1, 1.25)
+                    )
+```
+
+#Support Vector Machine (Standard 2-Class Classification)
+```{r}
+set.seed(1234)
+svm1.data<-list(train[c(sample(fraud,length(fraud)*(.75)),sample(nonfraud,length(fraud)*4*(.75)))])
+    
+    svm1.fit<-list(train(data = svm1.data[[1]], as.factor(Class)~.-Time,
+                        method='svmRadial',
+                        trControl=ctrl,
+                        tuneGrid = tgrid,
+                        verbose=FALSE))
+    
+    print(paste0(c('SVM Model: 1'),collapse = ''))
+    svm1.fit[[1]]
+    plot(svm1.fit[[1]])
+
+    for(i in 2:5){
+        svm1.data[[i]]<-train[c(sample(fraud,length(fraud)*(.75)),sample(nonfraud,length(fraud)*4*(.75)))]
+        svm1.fit[[i]]<-train(data = svm1.data[[1]], as.factor(Class)~.-Time,
+                        method='svmRadial',
+                        trControl=ctrl,
+                        tuneGrid = tgrid,
+                        verbose=FALSE)
+        print(paste0(c('SVM Model: ',i),collapse = ''))
+        svm1.fit[[i]]
+    }
+
+    for(i in c(1:5)){
+        plot(svm1.fit[[i]])
+    }
+```
+
+#Support Vector Machine (Novelty Detection via Single Class SVM)
+```{r}
+set.seed(1234)
+svm2.data<-train[nonfraud]
+svm2.data[,Class:=as.factor(Class)]
+
+cost<-seq(from=0.2,to=5,by=0.2)
+NU<-seq(from = 0.1,to=1,by=0.1)
+
+svm2.fit<-list()
+for(i in 1:10){
+    svm2.fit[[i]]<- ksvm(Class~.-Time,data=svm1.data,nu=0.1/i,type='one-svc')
+    print(paste0(c('Model ',i),collapse = ''))
+    print(svm2.fit[[i]])
+}
+
+svm2.validate<-list()
+TP<-c()
+FN<-c()
+sens<-c()
+temp_data<-train[fraud,]
+for(i in 1:10){
+    svm2.validate[[i]]<-predict(svm2.fit[[i]],newdata=temp_data,type='response')
+    TP[i]<-length(which(svm2.validate[[i]]==FALSE))
+    FN[i]<-length(which(svm2.validate[[i]]==TRUE))
+    sens[i]<-TP[i]/(TP[i]+FN[i])
+}
+
+print('Model With Best Training Set Fraud Detection')
+best_novelty<-which(sens==max(sens))
+svm2.fit[best_novelty]
+
+print('Best Model Performance on Test Set Fraud Data')
+a<- which(test$Class=='1')
+b<- which(test$Class=='0')
+svm2.test<-predict(svm2.fit[[best_novelty]],newdata=test[a,],type='response')
+TP.test<-length(which(svm2.test==FALSE))
+FN.test<-length(which(svm2.test==TRUE))
+sens.test<-TP.test/(TP.test+FN.test)
+sens.test
+```
+
+
+
+
+
 
