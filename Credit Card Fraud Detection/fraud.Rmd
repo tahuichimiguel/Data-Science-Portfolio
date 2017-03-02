@@ -8,9 +8,11 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+#Load Data
 ```{r}
 suppressMessages(library(data.table))
 suppressMessages(library(ggplot2))
+suppressMessages(library(gridExtra))
 suppressMessages(library(glmnet))
 suppressMessages(library(caret))
 suppressMessages(library(corrplot))
@@ -20,59 +22,100 @@ suppressMessages(library(gbm))
 suppressMessages(library(ada))
 suppressMessages(library(plyr))
 
-path <- '/Users/Mikey/Documents/ML-Case-Studies/Credit Card Fraud Detection'
+path <- '/Users/Mikey/Documents/Case-Studies/Credit Card Fraud Detection'
 setwd(path)
 DT<- fread('creditcard.csv',sep = ',', colClasses = rep('numeric',31))
 ```
 
-#Checking & Cleaning
-```{r}
-invisible(DT[,Class:= as.numeric(Class)])
-summary(DT)
+##Checking & Cleaning
 
+The dataset consists of **284807 transactions** with each observation classified as either legitimate(Class=0) or fraudulent(Class=1). Each observation has **30 quantitative fields** that can be used as predictors. 
+
+It should be noted that the 'Time' field is just the time lapse between each observation and the 1st observation in the dataset. It is essentially a row index and provides no meaningful date-time information so **it should be excluded from any preditive analysis**.
+
+```{r}
+summary(DT)
+```
+
+The data is extremely unbalanced with only ***492 fraudulent transactions**, corresponding to only 1.727%. This degree of skewness is problematic for any predictive model because the majority Class will dominate the calculations, making it difficult to build an accurate classifier for fraudulent transactions. Data resampling is needed to create sub-training sets with more balanced occurrences of both Class levels.
+
+```{r}
 #How Many Ocurrences of Each Class
 DT[,.N, by = Class]
+```
 
+
+##Data Visualization of Top Predictors
+
+There is poor linear correlation between the transaction Class and the possible predictors. Of the 29 non-trivial fields, only 11 have a correlation with a magnitude greater than 10% and only 2 of those correlations exceed 30%. For the sake of simplicity, only those predictors with a Class correlation of at least 10% will be used to build a logistic model for the odds that a transaction is fraudulent.
+
+```{r}
 #Linear Correlation of Fraud with Predictors
+invisible(DT[,Class:= as.numeric(Class)])
+
 M<-cor(DT)
 tbl<-data.table(correlation = M[31,sort.list(abs(M[31,1:30]),decreasing = TRUE)],
                 varname=names(DT)[sort.list(abs(M[31,1:30]),decreasing = TRUE)])
 tbl
-```
 
-##EDA
-```{r}
-ggplot(data = DT, aes(x = V17,fill = as.factor(Class)))+geom_density(alpha = 0.25)
-ggplot(data = DT, aes(x = V14,fill = as.factor(Class)))+geom_density(alpha = 0.25)
-ggplot(data = DT, aes(x = V12,fill = as.factor(Class)))+geom_density(alpha = 0.25)
-ggplot(data = DT, aes(x = V10,fill = as.factor(Class)))+geom_density(alpha = 0.25)
-ggplot(data = DT, aes(x = V16,fill = as.factor(Class)))+geom_density(alpha = 0.25)
-ggplot(data = DT, aes(x = V3,fill = as.factor(Class)))+geom_density(alpha = 0.25)
-ggplot(data = DT, aes(x = V7,fill = as.factor(Class)))+geom_density(alpha = 0.25)
-ggplot(data = DT, aes(x = V11,fill = as.factor(Class)))+geom_density(alpha = 0.25)
-ggplot(data = DT, aes(x = V4,fill = as.factor(Class)))+geom_density(alpha = 0.25)
-ggplot(data = DT, aes(x = V18,fill = as.factor(Class)))+geom_density(alpha = 0.25)
-ggplot(data = DT, aes(x = V1,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+g1<-ggplot(data = DT, aes(x = V17,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+g2<-ggplot(data = DT, aes(x = V14,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+g3<-ggplot(data = DT, aes(x = V12,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+
+grid.arrange(g1,g2,g3,ncol=3)
+
+g4<-ggplot(data = DT, aes(x = V10,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+g5<-ggplot(data = DT, aes(x = V16,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+g6<-ggplot(data = DT, aes(x = V3,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+
+grid.arrange(g4,g5,g6,ncol=3)
+
+g7<-ggplot(data = DT, aes(x = V7,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+g8<-ggplot(data = DT, aes(x = V11,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+g9<-ggplot(data = DT, aes(x = V4,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+
+grid.arrange(g7,g8,g9,ncol=3)
+
+g10<-ggplot(data = DT, aes(x = V18,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+g11<-ggplot(data = DT, aes(x = V1,fill = as.factor(Class)))+geom_density(alpha = 0.25)
+
+grid.arrange(g10,g11,ncol=2)
 ```
 
 #Create Data Partition (Train,Test)
+There are 2 major issues with directly using the raw data for modeling
+  1. The dataset is too large to use in model building all at once. This is true even if a 60/40 split is used.
+  2. The dataset is unbalanced and needs to be adjusted so the fraud data is not modeled as just 'noise'.
+
+Both issues are addressed by making several smaller subsets of the training data that are only 42% the size of the original dataset and are rebalanced so that the fraud/legitimate disparity is less severe. Specifically, a **primary training set** is created using 60% of the raw data(i.e. 60% of all fraud & 60% of all legitimate) and **10 sub-training sets ** are created from it via resampling without replacement. The sub-training sets are created in such a way that the frequency of legitimate transactions is only 4 times that of the fraudulent transactions. 
+
+**Note:** The choice of a 4:1 legitimate/fraud ratio is arbitrary. A complete analysis could include assessing the effect of this split on the predictive power to detect fraud.
+
 ```{r}
 set.seed(1234)
 inTrain<-createDataPartition(DT$Class, p = 0.6,list=FALSE)
-
 train <-DT[inTrain]  #419 Total Occurrences of Fraud
-  train.sub<-createDataPartition(train$Class,p=0.7,times=10,list = FALSE)
-
 test  <-DT[-inTrain] #73 Occurrences of Fraud
+
+nonfraud<-which(train$Class==0)
+fraud<-which(train$Class==1)
+
+#Use nonfraud-to-fraud ratio of 4:1 
+set.seed(1234)
+
+train.sub<-list()
+for(i in 1:10){
+  train.sub[[i]]<-train[c(sample(fraud,length(fraud)*(.75)),sample(nonfraud,length(fraud)*4*(.75)))]
+}
 ```
 
 #Traditional Logistic Regression
-```{r}
-logit.models<-list(glm(Class~V17+V14+V12+V10+V16+V3+V7+V11+ V4+ V18+ V1,
-                          data = train[train.sub[,1]],family = 'binomial')
-              )
 
-for(i in 2:10){
+Regularized regression approach would normally be used to handle correlation between the predictors to create an accurate linear model with the fewest number of correlated predictors. However, the values provided in the dataset have been 'decorrelated' via principle component analysis(PCA) resulting is essentially independent predictors. Therefore, standard logistic regression considering only major effects is used.
+
+```{r}
+
+for(i in 1:10){
         logit.models[[i]]<- glm(Class~V17+V14+V12+V10+V16+V3+V7+V11+ V4+ V18+ V1 ,
                               data = train[train.sub[,i]],family = 'binomial')
 }
@@ -84,43 +127,38 @@ for(i in 1:10){
 logistic.final<-glm(data= train,as.factor(Class)~V14+V10+V16+V3+V4,family = 'binomial')
 summary(logistic.final)
 
-#setwd()
-#saveRDS(logistic.final,file='logistic_final.rds')
-
-#pval<-format(1-pchisq(6128.1-2008.1,df=(242085-242080)),nsmall=2)
-#print(paste0(c('P-value that Logit Model Differs from Constant Logit Model is ',pval),collapse = ''))
 
 #In-Sample Prediction
-pred.logit<-predict.glm(logistic.final,newdata=train)
-pred.expit<- exp(pred.logit)/(1+exp(pred.logit))
-
-a<-which(train$Class==1)
-b<-which(train$Class==0)
-
-TP<-length(which(pred.expit[a]>0.5))
-FP<-length(which(pred.expit[a]<=0.5))
-TN<-length(which(pred.expit[b]<0.5))
-FN<-length(which(pred.expit[b]>0.5))
-Recall<-TP/(TP+FN)
-TNR<-TN/(TN+FP)
-PPV<-TP/(TP+FP)
-NPV<-TN/(TN+FN)
+  pred.logit<-predict.glm(logistic.final,newdata=train)
+  pred.expit<- exp(pred.logit)/(1+exp(pred.logit))
+  
+  a<-which(train$Class==1)
+  b<-which(train$Class==0)
+  
+  TP<-length(which(pred.expit[a]>0.5))
+  FP<-length(which(pred.expit[a]<=0.5))
+  TN<-length(which(pred.expit[b]<0.5))
+  FN<-length(which(pred.expit[b]>0.5))
+  Recall<-TP/(TP+FN)
+  TNR<-TN/(TN+FP)
+  PPV<-TP/(TP+FP)
+  NPV<-TN/(TN+FN)
 
 #Out of Sample Prediction
-pred.logit.test<-predict.glm(logistic.final,newdata=test)
-pred.expit.test<- exp(pred.logit.test)/(1+exp(pred.logit.test))
-
-a<-which(test$Class==1)
-b<-which(test$Class==0)
-
-TP.test<-length(which(pred.expit.test[a]>0.5))
-FP.test<-length(which(pred.expit.test[a]<=0.5))
-TN.test<-length(which(pred.expit.test[b]<0.5))
-FN.test<-length(which(pred.expit.test[b]>0.5))
-Recall.test<-TP.test/(TP.test+FN.test)
-TNR.test<-TN.test/(TN.test+FP.test)
-PPV.test<-TP.test/(TP.test+FP.test)
-NPV.test<-TN.test/(TN.test+FN.test)
+  pred.logit.test<-predict.glm(logistic.final,newdata=test)
+  pred.expit.test<- exp(pred.logit.test)/(1+exp(pred.logit.test))
+  
+  a<-which(test$Class==1)
+  b<-which(test$Class==0)
+  
+  TP.test<-length(which(pred.expit.test[a]>0.5))
+  FP.test<-length(which(pred.expit.test[a]<=0.5))
+  TN.test<-length(which(pred.expit.test[b]<0.5))
+  FN.test<-length(which(pred.expit.test[b]>0.5))
+  Recall.test<-TP.test/(TP.test+FN.test)
+  TNR.test<-TN.test/(TN.test+FP.test)
+  PPV.test<-TP.test/(TP.test+FP.test)
+  NPV.test<-TN.test/(TN.test+FN.test)
 
 ##Summary
 logit.DT<-data.table(test_set=c('train','test'),
@@ -134,20 +172,16 @@ logit.DT
 ```
 
 #Adaboost: Cross-Validation 
+
+An adaboost classifier is well-suited for fraud detection because it is specifically designed for 2-level classification. 
+
+Multiple adaboost models are fit to 5 subsets of the training dataset in which the levels have been rebalanced to have a fraudulent: legitimate transaction ratio of XX:XX .
+
+
 ```{r}
-nonfraud<-which(train$Class==0)
-fraud<-which(train$Class==1)
-
-#Use nonfraud-to-fraud ratio of 4:1 
-set.seed(1234)
-
-ada.data<-list(train[c(sample(fraud,length(fraud)*(.75)),sample(nonfraud,length(fraud)*4*(.75)))])
-    
-    ada.fit<-list(train(data = ada.data[[1]], Class~.-Time,method='ada',verbose=FALSE))
-    print(paste0(c('Adaboost Model: 1'),collapse = ''))
-    ada.fit[[1]]
-
-    for(i in 2:5){
+    ada.fit<-list()
+ 
+    for(i in 1:10){
         ada.data[[i]]<-train[c(sample(fraud,length(fraud)*(2/3)),sample(nonfraud,length(fraud)*4*2/3))]
         ada.fit[[i]]<-train(data = ada.data[[i]], Class~.-Time,method='ada',verbose=FALSE)
         print(paste0(c('Adaboost Model: ',i),collapse = ''))
@@ -172,11 +206,11 @@ ada.data<-list(train[c(sample(fraud,length(fraud)*(.75)),sample(nonfraud,length(
 #Calculate Recall for All Adaboost Models on Entire Training Set
 ada.recall=c()
 ada.specificity=c()
-for(i in 1:5){
+for(i in 1:10){
     ada.recall[i]<-sensitivity(predict(ada.fit[[i]],newdata =train),as.factor(train$Class),positive='1')
     ada.specificity[[i]]<-sensitivity(predict(ada.fit[[i]],newdata =train),as.factor(train$Class),positive='0')
 }
-data.table(Model=c(1:5),recall=ada.recall,spec=ada.specificity)
+data.table(Model=c(1:10),recall=ada.recall,spec=ada.specificity)
 
 #Final AdaBoost Model Training - Voting
     v1<-predict(ada.fit[[1]],newdata=train)
@@ -184,19 +218,26 @@ data.table(Model=c(1:5),recall=ada.recall,spec=ada.specificity)
     v3<-predict(ada.fit[[3]],newdata=train)
     v4<-predict(ada.fit[[4]],newdata=train)
     v5<-predict(ada.fit[[5]],newdata=train)
-    v.agg<-as.numeric(v1)+as.numeric(v2)+as.numeric(v3)+as.numeric(v4)+as.numeric(v5)-5
+    v6<-predict(ada.fit[[6]],newdata=train)
+    v7<-predict(ada.fit[[7]],newdata=train)
+    v8<-predict(ada.fit[[8]],newdata=train)
+    v9<-predict(ada.fit[[9]],newdata=train)
+    v10<-predict(ada.fit[[10]],newdata=train)
+    
+    v.agg<-as.numeric(v1)+as.numeric(v2)+as.numeric(v3)+as.numeric(v4)+as.numeric(v5)+
+      as.numeric(v6)+as.numeric(v7)+as.numeric(v8)+as.numeric(v9)+as.numeric(v10)-10
     
     final.ada<-data.table(v.agg, truth=as.factor(train$Class))
     
     sens<-c()
     spec<-c()
-    for(i in 1:5){
+    for(i in 1:10){
         final.ada[,prediction:=as.factor(ifelse(v.agg>i,'1','0'))]
         sens[i]<-sensitivity(final.ada$prediction,final.ada$truth,positive='1')
         spec[i]<-sensitivity(final.ada$prediction,final.ada$truth,positive='0')
     }
     
-    ggplot(data.table(num.votes=c(1:5),sens=sens),aes(x=num.votes,y=sens))+
+    ggplot(data.table(num.votes=c(1:10),sens=sens),aes(x=num.votes,y=sens))+
         geom_line(colour='red')+geom_point(colour='red')+ylim(0,1)+
         xlab('Number of Positive Votes')+ylab('Sensitivity')+
         ggtitle('Effect of Model Voting on Fraud Sensitivity (In-Sample Estimate)')
@@ -207,7 +248,14 @@ data.table(Model=c(1:5),recall=ada.recall,spec=ada.specificity)
     v3<-predict(ada.fit[[3]],newdata=test)
     v4<-predict(ada.fit[[4]],newdata=test)
     v5<-predict(ada.fit[[5]],newdata=test)
-    v.agg<-as.numeric(v1)+as.numeric(v2)+as.numeric(v3)+as.numeric(v4)+as.numeric(v5)-5
+    v6<-predict(ada.fit[[6]],newdata=test)
+    v7<-predict(ada.fit[[7]],newdata=test)
+    v8<-predict(ada.fit[[8]],newdata=test)
+    v9<-predict(ada.fit[[9]],newdata=test)
+    v10<-predict(ada.fit[[10]],newdata=test)
+    
+    v.agg<-as.numeric(v1)+as.numeric(v2)+as.numeric(v3)+as.numeric(v4)+as.numeric(v5)+
+      as.numeric(v6)+as.numeric(v7)+as.numeric(v8)+as.numeric(v9)+as.numeric(v10)-10    
     
     final.ada.test<-data.table(v.agg, truth=as.factor(test$Class))
     
