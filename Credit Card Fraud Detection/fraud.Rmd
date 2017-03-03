@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 #Load Data
 ```{r}
+suppressMessages(options(warn = -1))
 suppressMessages(library(data.table))
 suppressMessages(library(ggplot2))
 suppressMessages(library(gridExtra))
@@ -22,7 +23,7 @@ suppressMessages(library(gbm))
 suppressMessages(library(ada))
 suppressMessages(library(plyr))
 
-path <- '/Users/Mikey/Documents/Case-Studies/Credit Card Fraud Detection'
+path <- '/Users/Mikey/Documents/ML-Case-Studies/Credit Card Fraud Detection'
 setwd(path)
 DT<- fread('creditcard.csv',sep = ',', colClasses = rep('numeric',31))
 ```
@@ -43,7 +44,6 @@ The data is extremely unbalanced with only ***492 fraudulent transactions**, cor
 #How Many Ocurrences of Each Class
 DT[,.N, by = Class]
 ```
-
 
 ##Data Visualization of Top Predictors
 
@@ -87,11 +87,13 @@ There are 2 major issues with directly using the raw data for modeling
   1. The dataset is too large to use in model building all at once. This is true even if a 60/40 split is used.
   2. The dataset is unbalanced and needs to be adjusted so the fraud data is not modeled as just 'noise'.
 
-Both issues are addressed by making several smaller subsets of the training data that are only 42% the size of the original dataset and are rebalanced so that the fraud/legitimate disparity is less severe. Specifically, a **primary training set** is created using 60% of the raw data(i.e. 60% of all fraud & 60% of all legitimate) and **10 sub-training sets ** are created from it via resampling without replacement. The sub-training sets are created in such a way that the frequency of legitimate transactions is only 4 times that of the fraudulent transactions. 
+Both issues are addressed by making several smaller subsets of the training data that are only 42% the size of the original dataset and are rebalanced so that the fraud/legitimate disparity is less severe. Specifically, a **primary training set** is created using 60% of the raw data(i.e. 60% of all fraud & 60% of all legitimate) and **10 sub-training sets ** are created from it via resampling without replacement. The sub-training sets are created in such a way that the frequency of legitimate transactions is only 8 times that of the fraudulent transactions. 
 
-**Note:** The choice of a 4:1 legitimate/fraud ratio is arbitrary. A complete analysis could include assessing the effect of this split on the predictive power to detect fraud.
+**Note:** The choice of a 8:1 legitimate/fraud ratio is arbitrary. A complete analysis could include assessing the effect of this split on the predictive power to detect fraud.
 
 ```{r}
+invisible(DT[,Class:= as.factor(Class)])
+
 set.seed(1234)
 inTrain<-createDataPartition(DT$Class, p = 0.6,list=FALSE)
 train <-DT[inTrain]  #419 Total Occurrences of Fraud
@@ -100,12 +102,12 @@ test  <-DT[-inTrain] #73 Occurrences of Fraud
 nonfraud<-which(train$Class==0)
 fraud<-which(train$Class==1)
 
-#Use nonfraud-to-fraud ratio of 4:1 
+#Use nonfraud-to-fraud ratio of 8:1 
 set.seed(1234)
 
 train.sub<-list()
 for(i in 1:10){
-  train.sub[[i]]<-train[c(sample(fraud,length(fraud)*(.75)),sample(nonfraud,length(fraud)*4*(.75)))]
+  train.sub[[i]]<-train[c(sample(fraud,length(fraud)*(.75)),sample(nonfraud,length(fraud)*8*(.75)))]
 }
 ```
 
@@ -114,20 +116,36 @@ for(i in 1:10){
 Regularized regression approach would normally be used to handle correlation between the predictors to create an accurate linear model with the fewest number of correlated predictors. However, the values provided in the dataset have been 'decorrelated' via principle component analysis(PCA) resulting is essentially independent predictors. Therefore, standard logistic regression considering only major effects is used.
 
 ```{r}
+logit.models<-list()
 
+set.seed(1234)
 for(i in 1:10){
         logit.models[[i]]<- glm(Class~V17+V14+V12+V10+V16+V3+V7+V11+ V4+ V18+ V1 ,
-                              data = train[train.sub[,i]],family = 'binomial')
+                                    data = train.sub[[i]],family = 'binomial')
 }
+```
 
+The predictors used for the final logistic model are selected based on the p-values for each term in the models built on the 10 sub-training datasets. A **p-value of 0.01** is used as the significance threshold for terms in the glm.
+
+```{r}
 for(i in 1:10){
  print(t(which(coef(summary(logit.models[[i]]))[,4]<.01)))
 }
 
+set.seed(1234)
 logistic.final<-glm(data= train,as.factor(Class)~V14+V10+V16+V3+V4,family = 'binomial')
 summary(logistic.final)
+```
 
+###Logistic Model Accuracy
 
+The standard confusion matrix metrics are calculated using both the **primary training set** and the **test set**
+    1. Recall
+    2. True Negative Rate (TNR)
+    3. Positive Predictive Value (PPV)
+    4. Negative Predictive Value (NPV)
+    
+```{r}
 #In-Sample Prediction
   pred.logit<-predict.glm(logistic.final,newdata=train)
   pred.expit<- exp(pred.logit)/(1+exp(pred.logit))
@@ -136,9 +154,9 @@ summary(logistic.final)
   b<-which(train$Class==0)
   
   TP<-length(which(pred.expit[a]>0.5))
-  FP<-length(which(pred.expit[a]<=0.5))
+  FN<-length(which(pred.expit[a]<=0.5))
   TN<-length(which(pred.expit[b]<0.5))
-  FN<-length(which(pred.expit[b]>0.5))
+  FP<-length(which(pred.expit[b]>=0.5))
   Recall<-TP/(TP+FN)
   TNR<-TN/(TN+FP)
   PPV<-TP/(TP+FP)
@@ -152,177 +170,271 @@ summary(logistic.final)
   b<-which(test$Class==0)
   
   TP.test<-length(which(pred.expit.test[a]>0.5))
-  FP.test<-length(which(pred.expit.test[a]<=0.5))
+  FN.test<-length(which(pred.expit.test[a]<=0.5))
   TN.test<-length(which(pred.expit.test[b]<0.5))
-  FN.test<-length(which(pred.expit.test[b]>0.5))
+  FP.test<-length(which(pred.expit.test[b]>=0.5))
   Recall.test<-TP.test/(TP.test+FN.test)
   TNR.test<-TN.test/(TN.test+FP.test)
   PPV.test<-TP.test/(TP.test+FP.test)
   NPV.test<-TN.test/(TN.test+FN.test)
+```
 
+The training set and test set accuracy metrics show that the final logistic model is able to accurately and reliably label legitimate credit card transactions. This is demonstrated by TNR and NPV values exceeding 0.99. 
+
+It does not have the same degree of accuracy for fraudulent transactions with Recall values of only 0.88. In addition, the PPV on the test set suggests that any transaction labeled as fraudulent is correct only 59% of the time. This essentially disqualifies the final logistic model from having any in-field applications.
+
+```{r}
 ##Summary
-logit.DT<-data.table(test_set=c('train','test'),
+logit.DT<-data.table(data_set=c('train','test'),
                      recall = c(Recall,Recall.test),
-                     negative.rate=c(TNR,TNR.test),
+                     true.negative.rate=c(TNR,TNR.test),
                      pos.pred.value=c(PPV,PPV.test),
                      neg.pred.value=c(NPV,NPV.test))
 
 logit.DT
-
 ```
 
-#Adaboost: Cross-Validation 
+#Machine Learning Classifiers
 
-An adaboost classifier is well-suited for fraud detection because it is specifically designed for 2-level classification. 
+The predictive performance of 1 gradient boosting classifier and 2 support vector machine classifiers are investigated. Before training these types of models, the Class variables in the sub-training datasets need be converted into factor variables.
 
-Multiple adaboost models are fit to 5 subsets of the training dataset in which the levels have been rebalanced to have a fraudulent: legitimate transaction ratio of XX:XX .
+```{r}
+for(i in 1:10){
+  invisible(train.sub[[i]][,Class:=as.factor(Class)])
+}
+```
+
+##Gradient Boosting with Trees: Cross-Validation 
+
+GBM classifiers use weighted decision trees as the weak learners. The tree depth needed to get high accuracy is typically less than 3. As with the logit regression model, multiple GBM classifiers are created using the sub-training data sets. Each of the 10 gradient boosting models is able to classify fraudulent transactions on the entire training set moderately well with the least accurate model having a fraud sensitivity of 0.878. 
 
 
 ```{r}
-    ada.fit<-list()
- 
+gbm.fit<-list()
+
+  set.seed(1234)
+  for(i in 1:10){
+      gbm.fit[[i]]<-train(data = train.sub[[i]], Class~.-Time,method='gbm',verbose=FALSE)
+  }
+
+
+#Calculate Recall for All GBM Models on Entire Training Set
+    gbm.recall=c()
+    gbm.specificity=c()
+  
+    a<-which(train$Class=='1')
+    b<-which(train$Class=='0')
+  
     for(i in 1:10){
-        ada.data[[i]]<-train[c(sample(fraud,length(fraud)*(2/3)),sample(nonfraud,length(fraud)*4*2/3))]
-        ada.fit[[i]]<-train(data = ada.data[[i]], Class~.-Time,method='ada',verbose=FALSE)
-        print(paste0(c('Adaboost Model: ',i),collapse = ''))
-        ada.fit[[i]]
+          gbm.recall[i]<-length(which(predict(gbm.fit[[i]],newdata =train)[a]=='1'))/length(a)
+          gbm.specificity[i]<-length(which(predict(gbm.fit[[i]],newdata =train)[b]=='0'))/length(b)
     }
+      data.table(Model=c(1:10),recall=gbm.recall,spec=gbm.specificity)
+```
 
-    # setwd()
-    # saveRDS(ada.fit[[1]], file="ada1.rds")
-    # saveRDS(ada.fit[[2]], file="ada2.rds")
-    # saveRDS(ada.fit[[3]], file="ada3.rds")
-    # saveRDS(ada.fit[[4]], file="ada4.rds")
-    # saveRDS(ada.fit[[5]], file="ada5.rds")
-    
-    #  setwd()
-    # ada.fit<-list(readRDS("ada1.rds"))
-    # ada.fit[[2]] <- readRDS("ada2.rds")
-    # ada.fit[[3]]<- readRDS("ada3.rds")
-    # ada.fit[[4]]<- readRDS("ada4.rds")
-    # ada.fit[[5]]<- readRDS("ada5.rds")
+The final gbm model will be a composite of all 10 classifiers. It labels transactions as fraudulent if a minimum number of the predictors classify it as fraudulent. To determine what that threshold should be, the true positive rate(TPR) was calculated for predictor thresholds varying from 1-10. The results show that the final model is able to label a fraudulent training set transaction best when a minimum of 1 gbm model classifies it as fraudulent.
 
+It should be noted that this procedure of classifying fraud based on a minimum number of votes appears to be a robust approach for all thresholds. As shown in the ROC curve for the training data, all the data points are dramatically above the 45 degree line with a minimum TPR of 0.948 (threshold = 10). Based on the plotted values and the fact that TPR=1 & FPR=1 for thresholds to the right of the last point (labels everything as fraud), the **AUC for the entire final model is greater than 0.9** making it an extremely good classifier of fraudulent transactions.
 
-#Calculate Recall for All Adaboost Models on Entire Training Set
-ada.recall=c()
-ada.specificity=c()
-for(i in 1:10){
-    ada.recall[i]<-sensitivity(predict(ada.fit[[i]],newdata =train),as.factor(train$Class),positive='1')
-    ada.specificity[[i]]<-sensitivity(predict(ada.fit[[i]],newdata =train),as.factor(train$Class),positive='0')
-}
-data.table(Model=c(1:10),recall=ada.recall,spec=ada.specificity)
-
-#Final AdaBoost Model Training - Voting
-    v1<-predict(ada.fit[[1]],newdata=train)
-    v2<-predict(ada.fit[[2]],newdata=train)
-    v3<-predict(ada.fit[[3]],newdata=train)
-    v4<-predict(ada.fit[[4]],newdata=train)
-    v5<-predict(ada.fit[[5]],newdata=train)
-    v6<-predict(ada.fit[[6]],newdata=train)
-    v7<-predict(ada.fit[[7]],newdata=train)
-    v8<-predict(ada.fit[[8]],newdata=train)
-    v9<-predict(ada.fit[[9]],newdata=train)
-    v10<-predict(ada.fit[[10]],newdata=train)
+```{r}
+#Final GBM Model - Validation on Training Set
+    v1<-predict(gbm.fit[[1]],newdata=train)
+    v2<-predict(gbm.fit[[2]],newdata=train)
+    v3<-predict(gbm.fit[[3]],newdata=train)
+    v4<-predict(gbm.fit[[4]],newdata=train)
+    v5<-predict(gbm.fit[[5]],newdata=train)
+    v6<-predict(gbm.fit[[6]],newdata=train)
+    v7<-predict(gbm.fit[[7]],newdata=train)
+    v8<-predict(gbm.fit[[8]],newdata=train)
+    v9<-predict(gbm.fit[[9]],newdata=train)
+    v10<-predict(gbm.fit[[10]],newdata=train)
     
     v.agg<-as.numeric(v1)+as.numeric(v2)+as.numeric(v3)+as.numeric(v4)+as.numeric(v5)+
       as.numeric(v6)+as.numeric(v7)+as.numeric(v8)+as.numeric(v9)+as.numeric(v10)-10
     
-    final.ada<-data.table(v.agg, truth=as.factor(train$Class))
+    final.gbm<-data.table(v.agg, truth=train$Class)
     
-    sens<-c()
-    spec<-c()
+    gbm.TPR<-c()
+    gbm.FPR<-c()
+
+    a<-which(train$Class=='1')
+    b<-which(train$Class=='0')
+
     for(i in 1:10){
-        final.ada[,prediction:=as.factor(ifelse(v.agg>i,'1','0'))]
-        sens[i]<-sensitivity(final.ada$prediction,final.ada$truth,positive='1')
-        spec[i]<-sensitivity(final.ada$prediction,final.ada$truth,positive='0')
+        final.gbm[,prediction:=as.factor(ifelse(v.agg>=i,'1','0'))]
+        gbm.TPR[i]<-length(which(final.gbm$prediction[a]=='1'))/length(a)
+        gbm.FPR[i]<-length(which(final.gbm$prediction[b]=='1'))/length(b)
     }
     
-    ggplot(data.table(num.votes=c(1:10),sens=sens),aes(x=num.votes,y=sens))+
-        geom_line(colour='red')+geom_point(colour='red')+ylim(0,1)+
-        xlab('Number of Positive Votes')+ylab('Sensitivity')+
-        ggtitle('Effect of Model Voting on Fraud Sensitivity (In-Sample Estimate)')
+    ggplot(data=data.table(threshold=c(1:10),TPR=gbm.TPR,FPR=gbm.FPR),aes(x=threshold,y=TPR))+
+        geom_point(colour='blue')+geom_line()+
+        ylim(0.8,1)+xlim(1,10)+xlab('Threshold')+ylab('TPR')+ggtitle('Threshold Effect on GBM TPR')
+    
+    ggplot(data=data.table(threshold=as.factor(c(1:10)),TPR=gbm.TPR,FPR=gbm.FPR),aes(x=FPR,y=TPR,colour=threshold))+
+        geom_point()+geom_line()+
+        ylim(0,1)+xlim(0,1)+
+        geom_line(data=data.table(x=c(0,1),y=c(0,1)),aes(x=x,y=y),colour='black')+
+        xlab('FPR')+ylab('TPR')+ggtitle('Partial ROC Curve for Final GBM')
+    
+    
+```
+    
+The final composite gradient boosting model is slightly better at correctly labeling fraud than the traditional logistic regression with a test set recall of 0.903, which is corresponds to a 3% improvement. However, it has a very poor test set PPV of 0.104 meaning that most of the predictions of fraudulent transactions would be false alarms. 
 
-#Final AdaBoost Model (Test Set)
-    v1<-predict(ada.fit[[1]],newdata=test)
-    v2<-predict(ada.fit[[2]],newdata=test)
-    v3<-predict(ada.fit[[3]],newdata=test)
-    v4<-predict(ada.fit[[4]],newdata=test)
-    v5<-predict(ada.fit[[5]],newdata=test)
-    v6<-predict(ada.fit[[6]],newdata=test)
-    v7<-predict(ada.fit[[7]],newdata=test)
-    v8<-predict(ada.fit[[8]],newdata=test)
-    v9<-predict(ada.fit[[9]],newdata=test)
-    v10<-predict(ada.fit[[10]],newdata=test)
+It is likely that the overly conservative predictions are a result of the rebalancing of the training data to an 8:1 legitimate-to-fraud ratio. A good next step to improve the composite gbm model would be to run a rebalancing study to see (1) how it affects the PPV and (2) how much the ratio can be increased before the recall decreases below an acceptable threshold.
+```{r}
+#Train
+    final.gbm[,prediction:=as.factor(ifelse(v.agg>0,'1','0'))]
+
+    a<-which(train$Class==1)
+    b<-which(train$Class==0)
+    
+    TP.train<-length(which(final.gbm$prediction[a]=='1'))
+    FN.train<-length(which(final.gbm$prediction[a]=='0'))
+    TN.train<-length(which(final.gbm$prediction[b]=='0'))
+    FP.train<-length(which(final.gbm$prediction[b]=='1'))
+    Recall.train<-TP.train/(TP.train+FN.train)
+    TNR.train<-TN.train/(TN.train+FP.train)
+    PPV.train<-TP.train/(TP.train+FP.train)
+    NPV.train<-TN.train/(TN.train+FN.train)
+
+#Final GBM Model (Test Set)
+    v1<-predict(gbm.fit[[1]],newdata=test)
+    v2<-predict(gbm.fit[[2]],newdata=test)
+    v3<-predict(gbm.fit[[3]],newdata=test)
+    v4<-predict(gbm.fit[[4]],newdata=test)
+    v5<-predict(gbm.fit[[5]],newdata=test)
+    v6<-predict(gbm.fit[[6]],newdata=test)
+    v7<-predict(gbm.fit[[7]],newdata=test)
+    v8<-predict(gbm.fit[[8]],newdata=test)
+    v9<-predict(gbm.fit[[9]],newdata=test)
+    v10<-predict(gbm.fit[[10]],newdata=test)
     
     v.agg<-as.numeric(v1)+as.numeric(v2)+as.numeric(v3)+as.numeric(v4)+as.numeric(v5)+
       as.numeric(v6)+as.numeric(v7)+as.numeric(v8)+as.numeric(v9)+as.numeric(v10)-10    
     
-    final.ada.test<-data.table(v.agg, truth=as.factor(test$Class))
+    final.gbm.test<-data.table(v.agg, truth=as.factor(test$Class))
+    final.gbm.test[,prediction:=as.factor(ifelse(v.agg>0,'1','0'))]
     
-    final.ada.test[,prediction:=as.factor(ifelse(v.agg>1,'1','0'))]
-    sens<-sensitivity(final.ada.test$prediction,final.ada.test$truth,positive='1')
-    spec<-sensitivity(final.ada.test$prediction,final.ada.test$truth,positive='0')
+    a<-which(test$Class=='1')
+    b<-which(test$Class=='0')
     
-    sens
-    spec
+    TP.test<-length(which(final.gbm.test$prediction[a]=='1'))
+    FN.test<-length(which(final.gbm.test$prediction[a]=='0'))
+    TN.test<-length(which(final.gbm.test$prediction[b]=='0'))
+    FP.test<-length(which(final.gbm.test$prediction[b]=='1'))
+    Recall.test<-TP.test/(TP.test+FN.test)
+    TNR.test<-TN.test/(TN.test+FP.test)
+    PPV.test<-TP.test/(TP.test+FP.test)
+    NPV.test<-TN.test/(TN.test+FN.test)
+
+gbm.DT<-data.table(data_set=c('train','test'),
+                     recall = c(Recall.train,Recall.test),
+                     true.negative.rate=c(TNR.train,TNR.test),
+                     pos.pred.value=c(PPV.train,PPV.test),
+                     neg.pred.value=c(NPV.train,NPV.test))
+
+gbm.DT
 ```
 
-#Support Vector Machine Tune Grid
-```{r}
-#Create smaller subset to manage runtime
-nonfraud<-which(train$Class==0)
-fraud<-which(train$Class==1)
+##Support Vector Machine (Standard 2-Class Classification)
 
+Support vector machines are classically used to distinguish between different groups by defining a separating hyperplane based on the predictor datapoints. If there exists   
+
+```{r}
 #Use nonfraud-to-fraud ratio of 4:1 
-ctrl<-trainControl(method='cv',number=3)
-tgrid = expand.grid(    sigma = c(.01, .5, 5),
-                        C = c(0.75, 0.9, 1, 1.1, 1.25)
-                    )
-```
 
-#Support Vector Machine (Standard 2-Class Classification)
-```{r}
 set.seed(1234)
-svm1.data<-list(train[c(sample(fraud,length(fraud)*(.75)),sample(nonfraud,length(fraud)*4*(.75)))])
-    
-    svm1.fit<-list(train(data = svm1.data[[1]], as.factor(Class)~.-Time,
+    svm1.fit<-list()
+    for(i in 1:10){
+        svm1.fit[[i]]<-train(data = train.sub[[i]], as.factor(Class)~.-Time,
                         method='svmRadial',
-                        trControl=ctrl,
-                        tuneGrid = tgrid,
-                        verbose=FALSE))
-    
-    print(paste0(c('SVM Model: 1'),collapse = ''))
-    svm1.fit[[1]]
-    plot(svm1.fit[[1]])
-
-    for(i in 2:5){
-        svm1.data[[i]]<-train[c(sample(fraud,length(fraud)*(.75)),sample(nonfraud,length(fraud)*4*(.75)))]
-        svm1.fit[[i]]<-train(data = svm1.data[[1]], as.factor(Class)~.-Time,
-                        method='svmRadial',
-                        trControl=ctrl,
-                        tuneGrid = tgrid,
                         verbose=FALSE)
-        print(paste0(c('SVM Model: ',i),collapse = ''))
+        #print(paste0(c('SVM Model: ',i),collapse = ''))
         svm1.fit[[i]]
     }
+    
+#Final SVM Model (Training Set)
+    v1<-predict(svm1.fit[[1]],newdata=train)
+    v2<-predict(svm1.fit[[2]],newdata=train)
+    v3<-predict(svm1.fit[[3]],newdata=train)
+    v4<-predict(svm1.fit[[4]],newdata=train)
+    v5<-predict(svm1.fit[[5]],newdata=train)
+    v6<-predict(svm1.fit[[6]],newdata=train)
+    v7<-predict(svm1.fit[[7]],newdata=train)
+    v8<-predict(svm1.fit[[8]],newdata=train)
+    v9<-predict(svm1.fit[[9]],newdata=train)
+    v10<-predict(svm1.fit[[10]],newdata=train)
+    
+    v.agg<-as.numeric(v1)+as.numeric(v2)+as.numeric(v3)+as.numeric(v4)+as.numeric(v5)+
+      as.numeric(v6)+as.numeric(v7)+as.numeric(v8)+as.numeric(v9)+as.numeric(v10)-10    
+    
+    final.svm1.train<-data.table(v.agg, truth=as.factor(train$Class))
+    invisible(final.svm1.train[,prediction:=as.factor(ifelse(v.agg>1,'1','0'))])
+    
+    a<-which(train$Class==1)
+    b<-which(train$Class==0)
+    
+    TP.train<-length(which(final.svm1.train[a]$prediction=='1'))
+    FP.train<-length(which(final.svm1.train[a]$prediction=='0'))
+    TN.train<-length(which(final.svm1.train[b]$prediction=='0'))
+    FN.train<-length(which(final.svm1.train[b]$prediction=='1'))
+    Recall.train<-TP.train/(TP.train+FN.train)
+    TNR.train<-TN.train/(TN.train+FP.train)
+    PPV.train<-TP.train/(TP.train+FP.train)
+    NPV.train<-TN.train/(TN.train+FN.train)
+    
+#Final SVM Model (Test Set)
+    v1<-predict(svm1.fit[[1]],newdata=test)
+    v2<-predict(svm1.fit[[2]],newdata=test)
+    v3<-predict(svm1.fit[[3]],newdata=test)
+    v4<-predict(svm1.fit[[4]],newdata=test)
+    v5<-predict(svm1.fit[[5]],newdata=test)
+    v6<-predict(svm1.fit[[6]],newdata=test)
+    v7<-predict(svm1.fit[[7]],newdata=test)
+    v8<-predict(svm1.fit[[8]],newdata=test)
+    v9<-predict(svm1.fit[[9]],newdata=test)
+    v10<-predict(svm1.fit[[10]],newdata=test)
+    
+    v.agg<-as.numeric(v1)+as.numeric(v2)+as.numeric(v3)+as.numeric(v4)+as.numeric(v5)+
+      as.numeric(v6)+as.numeric(v7)+as.numeric(v8)+as.numeric(v9)+as.numeric(v10)-10    
+    
+    final.svm1.test<-data.table(v.agg, truth=as.factor(test$Class))
+    invisible(final.svm1.test[,prediction:=as.factor(ifelse(v.agg>1,'1','0'))])
+    
+    a<-which(test$Class==1)
+    b<-which(test$Class==0)
+    
+    TP.test<-length(which(final.svm1.test[a]$prediction=='1'))
+    FP.test<-length(which(final.svm1.test[a]$prediction=='0'))
+    TN.test<-length(which(final.svm1.test[b]$prediction=='0'))
+    FN.test<-length(which(final.svm1.test[b]$prediction=='1'))
+    Recall.test<-TP.test/(TP.test+FN.test)
+    TNR.test<-TN.test/(TN.test+FP.test)
+    PPV.test<-TP.test/(TP.test+FP.test)
+    NPV.test<-TN.test/(TN.test+FN.test)
 
-    for(i in c(1:5)){
-        plot(svm1.fit[[i]])
-    }
+svm1.DT<-data.table(data_set=c('train','test'),
+                     recall = c(Recall.train,Recall.test),
+                     true.negative.rate=c(TNR.train,TNR.test),
+                     pos.pred.value=c(PPV.train,PPV.test),
+                     neg.pred.value=c(NPV.train,NPV.test))
+
+svm1.DT
 ```
 
 #Support Vector Machine (Novelty Detection via Single Class SVM)
+
+An alternative to multi-class classification with SVM is 1-class classification, or novelty detection. It's a little bit odd of a classification method because it constructs a 'separating' hyperplane based only on the data from 1 class. If all the information that uniquely describes the legitimate data is contained in the dataset, a descrimination algorithm can be created without having to make any adjustments to account imbalance between the legitimate and fraudulent data in the **primary training set** or the **test set**.  
+
 ```{r}
-set.seed(1234)
 svm2.data<-train[nonfraud]
 svm2.data[,Class:=as.factor(Class)]
 
-cost<-seq(from=0.2,to=5,by=0.2)
-NU<-seq(from = 0.1,to=1,by=0.1)
-
+set.seed(1234)
 svm2.fit<-list()
 for(i in 1:10){
-    svm2.fit[[i]]<- ksvm(Class~.-Time,data=svm1.data,nu=0.1/i,type='one-svc')
+    svm2.fit[[i]]<- ksvm(Class~.-Time,data=svm2.data,nu=0.1/i,type='one-svc')
     print(paste0(c('Model ',i),collapse = ''))
     print(svm2.fit[[i]])
 }
@@ -346,6 +458,7 @@ svm2.fit[best_novelty]
 print('Best Model Performance on Test Set Fraud Data')
 a<- which(test$Class=='1')
 b<- which(test$Class=='0')
+
 svm2.test<-predict(svm2.fit[[best_novelty]],newdata=test[a,],type='response')
 TP.test<-length(which(svm2.test==FALSE))
 FN.test<-length(which(svm2.test==TRUE))
