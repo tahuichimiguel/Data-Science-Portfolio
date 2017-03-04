@@ -27,8 +27,8 @@
 #### Credit Card Fraud Detection
   - Data analysis and modeling of 'Credit Card Fraud Detection' Kaggle dataset.
   - **Language:** R
-  - **Goal:** Model the Probability of a Credit Card Transaction being Fraudulent
-  - **Status:** In Progress
+  - **Goal:** Compare the out-of-box performance of different ML models at detecting credit card fraud. 
+  - **Status:** Completed
 
 
 ##Graphical Analysis Case Studies
