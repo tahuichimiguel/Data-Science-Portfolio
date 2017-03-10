@@ -14,9 +14,9 @@
 
 #### Accelerometer Activity Study: Predict Activity Based on Accelerometer Readings
   - The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har
-  - **Languages:** Python & R
+  - **Languages:** R
   - **Goal:** Predict the manner in which the subject did the exercise. This is the "classe" variable in the training set. 
-  - **Status:** R Analysis Complete. Python Analysis Ongoing.
+  - **Status:** Completed 
 
 #### Glass Classification 
   - Data analysis and machine learning modeling of 'Glass Classification' Kaggle dataset.
@@ -30,6 +30,12 @@
   - **Goal:** Compare the out-of-box performance of different ML models at detecting credit card fraud. 
   - **Status:** Completed
 
+#### Lending Club Loan Analysis (Current Study)
+  - Data analysis and modeling of 'Lending Club Loan Data' Kaggle dataset.
+  - **Language:** Python
+  - **Goal 1:** Identify Best Predictors of Timely Loan Repayment 
+  - **Goal 2:** Define & Model the Financial Risk of Granting a Loan 
+  - **Status:** Ongoing
 
 ##Graphical Analysis Case Studies
 
