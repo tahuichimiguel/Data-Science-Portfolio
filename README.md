@@ -1,4 +1,4 @@
-##Machine Learning Case Studies
+## Machine Learning Case Studies
 #### California Housing: Prediction of California Housing Average Value Using Gradient Boosted Regression Trees 
   - Original Case Presentation presented by Peter Prettenhofer
   - Uses California Housing Dataset in Scikit-learn
@@ -37,7 +37,7 @@
   - **Goal 2:** Define & Model the Financial Risk of Granting a Loan 
   - **Status:** Ongoing
 
-##Graphical Analysis Case Studies
+## Graphical Analysis Case Studies
 
 #### US Police Shooting Study: Graphical Analysis & Predictor Interactions
   - Three .CSV files from 2 separate Kaggle Datasets are used for this analysis. The 2 datasets were compiled by separate news entities: Washington Post & The Guardian.
