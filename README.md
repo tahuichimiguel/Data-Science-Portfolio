@@ -30,6 +30,12 @@
   - **Goal:** Compare the out-of-box performance of different ML models at detecting credit card fraud. 
   - **Status:** Completed
 
+#### Pima Diabetes Prediction
+  - Prediction of Future Diabetes Occurrence in Pima Native American Tribe
+  - **Language:** Python
+  - **Goal 1:** Predict the probability of a positive diabetes mellitus diagnosis based on preliminary medical tests.
+  - **Status:** Ongoing
+
 #### Lending Club Loan Analysis (Current Study)
   - Data analysis and modeling of 'Lending Club Loan Data' Kaggle dataset.
   - **Language:** Python
