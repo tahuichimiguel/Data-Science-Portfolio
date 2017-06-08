@@ -7,3 +7,6 @@
 
 ### CDC NHANES Datasets (2013-2014)
 - Source: Kaggle
+
+### UCI Diabetes (1999-2008)
+- Source: UCI Machine Learning Repository
