@@ -54,6 +54,15 @@
   - **Status:** Ongoing
   - **Data Size:** 441.8MB
 
+#### UCI Record Matching 
+- Modeling Matching Probability of 'Record Linkage Comparison Patterns Data Set' from UCI Machine Learning Repository
+  - **Language:** Python
+  - **Goal 1:** Generate Multiple Models that Reasonably Predict Record Matching Probabilities
+  - **Goal 2:** Assess Models for Recall, AUC, Overfitting, and Projected Misclassification Rate in Parts per Million (PPM) 
+  - **Goal 3:** Create Stacked Model Using Some or All Individual Models
+  - **Status:** Ongoing
+  - **Data Size:** 54MB (Zip File)
+
 ## Graphical Analysis Case Studies
 
 #### US Police Shooting Study: Graphical Analysis & Predictor Interactions
