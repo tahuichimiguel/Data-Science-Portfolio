@@ -61,7 +61,7 @@
   - **Goal 2:** Assess Models for Recall, AUC, Overfitting, and Projected Misclassification Rate in Parts per Million (PPM) 
   - **Goal 3:** Create Stacked Model Using Some or All Individual Models
   - **Status:** Ongoing
-  - **Data Size:** 54MB (Zip File)
+  - **Data Size:** 10 Zip Files ~5MB Each (Zip File)
 
 ## Graphical Analysis Case Studies
 
