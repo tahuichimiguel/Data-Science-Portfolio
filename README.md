@@ -63,6 +63,15 @@
   - **Status:** Ongoing
   - **Data Size:** 10 Zip Files ~5MB Each (Zip File)
 
+## Forecasting & Time Series Analysis Case Studies
+
+#### US Pollution Time Series Analysis
+- Analyzing and Modeling US Pollution Generation from 2000-2016 with SeasonalARIMA Models
+  - **Language:** Python
+  - **Goal 1:** Construct a Seasonal ARIMA Model to Predict Multiple Years Worth of Pollution Generation
+  - **Status:** Ongoing
+  - **Data Size:** 400.9MB Uncompressed 
+  
 ## Graphical Analysis Case Studies
 
 #### US Police Shooting Study: Graphical Analysis & Predictor Interactions
