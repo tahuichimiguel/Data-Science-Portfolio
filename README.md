@@ -80,5 +80,5 @@
   - **Languages:** R
   - **Goal 1:** Identify any situational clusters that may correlate with fatal police shootings of US citizens.
   - **Goal 2:** Determine if the data provided by the Washington Post & The Guardian corroborate each other.
-  - **Status:** Active
+  - **Status:** Inactive
   - Note: An additional analysis was performed on the Guardian data to investigate conditions that are most commonly associated with gunshot fatalities. The analysis is also posted on the Kaggle Dataset 'The Counted: Killed by Police, 2015-2016'
